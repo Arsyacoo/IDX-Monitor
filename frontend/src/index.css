@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme {
+  --color-idx-dark: #0f172a;
+  --color-idx-card: #1e293b;
+  --color-idx-text: #f8fafc;
+  --color-idx-accent: #3b82f6;
+  --color-idx-up: #10b981;
+  --color-idx-down: #ef4444;
+}
+
+@layer base {
+  body {
+    @apply bg-idx-dark text-idx-text antialiased;
+  }
+}
+
+/* Custom scrollbar for table */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-idx-dark;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-600 rounded;
+}

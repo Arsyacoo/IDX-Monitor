@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
+from datetime import datetime, timezone
 import random
 import asyncio
 import json
@@ -41,6 +42,15 @@ except Exception as e:
 # Global cache for real-time prices
 # Structure: { "BBCA.JK": { "last_price": 5000, "change_percent": 1.5, "volume": 100000, "prev_close": 4900 } }
 PRICE_CACHE = {}
+CACHE_STATUS = {
+    "last_update_started_at": None,
+    "last_update_completed_at": None,
+    "last_error": None,
+    "is_updating": False,
+}
+
+def utc_now_iso():
+    return datetime.now(timezone.utc).isoformat()
 
 async def update_prices_background():
     """
@@ -51,6 +61,8 @@ async def update_prices_background():
     batch_size = 50
     while True:
         try:
+            CACHE_STATUS["is_updating"] = True
+            CACHE_STATUS["last_update_started_at"] = utc_now_iso()
             total_stocks = len(STOCKS_DB)
             for i in range(0, total_stocks, batch_size):
                 batch = STOCKS_DB[i:i+batch_size]
@@ -101,16 +113,22 @@ async def update_prices_background():
                             continue
                             
                 except Exception as batch_e:
+                    CACHE_STATUS["last_error"] = str(batch_e)
                     print(f"Error updating batch {i}: {batch_e}")
                 
                 # Sleep longer between batches to avoid rate limits
                 await asyncio.sleep(2)
             
             # Sleep longer after a full cycle
+            CACHE_STATUS["last_update_completed_at"] = utc_now_iso()
+            CACHE_STATUS["last_error"] = None
+            CACHE_STATUS["is_updating"] = False
             print(f"Full update cycle completed. Cache size: {len(PRICE_CACHE)}")
             await asyncio.sleep(60) 
             
         except Exception as e:
+            CACHE_STATUS["last_error"] = str(e)
+            CACHE_STATUS["is_updating"] = False
             print(f"Fatal error in background task: {e}")
             await asyncio.sleep(5)
 
@@ -118,6 +136,17 @@ async def update_prices_background():
 async def startup_event():
     # Start the background task
     asyncio.create_task(update_prices_background())
+
+
+class HealthResponse(BaseModel):
+    status: str
+    total_stocks: int
+    cached_stocks: int
+    cache_coverage_percent: float
+    is_updating: bool
+    last_update_started_at: Optional[str]
+    last_update_completed_at: Optional[str]
+    last_error: Optional[str]
 
 class StockSummary(BaseModel):
     ticker: str
@@ -142,6 +171,24 @@ class StockDetail(BaseModel):
     last_price: float
     change_percent: float
     history: List[StockHistoryPoint]
+
+
+@app.get("/api/health", response_model=HealthResponse)
+def get_health():
+    total_stocks = len(STOCKS_DB)
+    cached_stocks = len(PRICE_CACHE)
+    coverage = (cached_stocks / total_stocks * 100) if total_stocks else 0
+
+    return {
+        "status": "ok" if CACHE_STATUS["last_error"] is None else "degraded",
+        "total_stocks": total_stocks,
+        "cached_stocks": cached_stocks,
+        "cache_coverage_percent": round(coverage, 2),
+        "is_updating": CACHE_STATUS["is_updating"],
+        "last_update_started_at": CACHE_STATUS["last_update_started_at"],
+        "last_update_completed_at": CACHE_STATUS["last_update_completed_at"],
+        "last_error": CACHE_STATUS["last_error"],
+    }
 
 @app.get("/api/stocks", response_model=StockListResponse)
 async def get_stocks(page: int = 1, limit: int = 10, search: Optional[str] = None):

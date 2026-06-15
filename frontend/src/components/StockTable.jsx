@@ -1,17 +1,66 @@
-import React from 'react';
-import { Search, TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Loader2, Star } from 'lucide-react';
 
-const StockTable = ({ stocks, onSelectStock, selectedTicker, page, setPage, totalPages, search, setSearch }) => {
+const formatPrice = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0);
 
-    // Client-side filtering removed since we do it on server now
-    // Debounce search could be added here if needed, but for now simple onChange is okay for MVP
+const StockTable = ({
+    stocks,
+    onSelectStock,
+    selectedTicker,
+    page,
+    setPage,
+    totalPages,
+    search,
+    setSearch,
+    isLoading,
+    watchlist,
+    onToggleWatchlist,
+}) => {
+    const [localSearch, setLocalSearch] = useState(search);
+    const [sortBy, setSortBy] = useState('ticker');
+    const [filterBy, setFilterBy] = useState('all');
+
+    useEffect(() => {
+        setLocalSearch(search);
+    }, [search]);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            if (localSearch !== search) {
+                setSearch(localSearch);
+                setPage(1);
+            }
+        }, 300);
+
+        return () => clearTimeout(handler);
+    }, [localSearch, search, setPage, setSearch]);
+
+    const visibleStocks = useMemo(() => {
+        const filteredStocks = stocks.filter((stock) => {
+            if (filterBy === 'watchlist') return watchlist.includes(stock.ticker);
+            if (filterBy === 'gainers') return stock.change_percent > 0;
+            if (filterBy === 'losers') return stock.change_percent < 0;
+            return true;
+        });
+
+        return [...filteredStocks].sort((firstStock, secondStock) => {
+            if (sortBy === 'price-desc') return secondStock.last_price - firstStock.last_price;
+            if (sortBy === 'change-desc') return secondStock.change_percent - firstStock.change_percent;
+            if (sortBy === 'change-asc') return firstStock.change_percent - secondStock.change_percent;
+            return firstStock.ticker.localeCompare(secondStock.ticker);
+        });
+    }, [stocks, filterBy, sortBy, watchlist]);
 
     return (
         <div className="bg-idx-card rounded-xl shadow-lg border border-slate-700 overflow-hidden flex flex-col h-full">
-            <div className="p-4 border-b border-slate-700">
-                <h2 className="text-xl font-bold mb-4 text-white flex items-center gap-2">
-                    IDX Market Data
-                </h2>
+            <div className="p-4 border-b border-slate-700 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                        IDX Market Data
+                        {isLoading && <Loader2 className="w-4 h-4 animate-spin text-idx-accent" />}
+                    </h2>
+                    <span className="text-xs text-slate-400">{watchlist.length} favorit</span>
+                </div>
 
                 <div className="relative">
                     <Search className="absolute left-3 top-2.5 text-gray-400 w-5 h-5" />
@@ -19,12 +68,32 @@ const StockTable = ({ stocks, onSelectStock, selectedTicker, page, setPage, tota
                         type="text"
                         placeholder="Search Ticker (e.g., ADRO)..."
                         className="w-full bg-slate-700 text-white pl-10 pr-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-idx-accent transition-all"
-                        value={search}
-                        onChange={(e) => {
-                            setSearch(e.target.value);
-                            setPage(1); // Reset to page 1 on search
-                        }}
+                        value={localSearch}
+                        onChange={(event) => setLocalSearch(event.target.value)}
                     />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                    <select
+                        value={filterBy}
+                        onChange={(event) => setFilterBy(event.target.value)}
+                        className="bg-slate-800 border border-slate-700 text-sm text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-idx-accent"
+                    >
+                        <option value="all">Semua saham</option>
+                        <option value="watchlist">Watchlist</option>
+                        <option value="gainers">Gainers</option>
+                        <option value="losers">Losers</option>
+                    </select>
+                    <select
+                        value={sortBy}
+                        onChange={(event) => setSortBy(event.target.value)}
+                        className="bg-slate-800 border border-slate-700 text-sm text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-idx-accent"
+                    >
+                        <option value="ticker">Ticker A-Z</option>
+                        <option value="change-desc">Change tertinggi</option>
+                        <option value="change-asc">Change terendah</option>
+                        <option value="price-desc">Harga tertinggi</option>
+                    </select>
                 </div>
             </div>
 
@@ -34,35 +103,61 @@ const StockTable = ({ stocks, onSelectStock, selectedTicker, page, setPage, tota
                         <tr>
                             <th className="p-4 font-semibold text-sm text-gray-300">Ticker</th>
                             <th className="p-4 font-semibold text-sm text-gray-300">Price</th>
-                            <th className="p-4 font-semibold text-sm text-gray-300 text-right">Change</th>
+                            <th className="p-4 font-semibold text-sm text-gray-300">Change</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700">
-                        {stocks.map((stock) => (
-                            <tr
-                                key={stock.ticker}
-                                onClick={() => onSelectStock(stock.ticker)}
-                                className={`cursor-pointer transition-colors hover:bg-slate-700/50 ${selectedTicker === stock.ticker ? 'bg-slate-700/80 border-l-4 border-idx-accent' : ''}`}
-                            >
-                                <td className="p-4 py-3">
-                                    <div className="font-bold text-white mb-0.5">{stock.ticker}</div>
-                                    <div className="text-xs text-gray-400 truncate max-w-[120px]">{stock.name}</div>
-                                </td>
-                                <td className="p-4 py-3 text-white font-mono">
-                                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(stock.last_price)}
-                                </td>
-                                <td className={`p-4 py-3 text-right font-bold ${stock.change_percent >= 0 ? 'text-idx-up' : 'text-idx-down'}`}>
-                                    <div className="flex items-center justify-end gap-1">
-                                        {stock.change_percent >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                                        {stock.change_percent}%
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                        {stocks.length === 0 && (
+                        {visibleStocks.map((stock) => {
+                            const isFavorite = watchlist.includes(stock.ticker);
+
+                            return (
+                                <tr
+                                    key={stock.ticker}
+                                    onClick={() => onSelectStock(stock.ticker)}
+                                    className={`cursor-pointer transition-colors hover:bg-slate-700/50 ${selectedTicker === stock.ticker ? 'bg-slate-700/80 border-l-4 border-idx-accent' : ''}`}
+                                >
+                                    <td className="p-4 py-3">
+                                        <div className="flex items-start gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    onToggleWatchlist(stock.ticker);
+                                                }}
+                                                className={`mt-0.5 transition-colors ${isFavorite ? 'text-yellow-400' : 'text-slate-500 hover:text-yellow-300'}`}
+                                                aria-label={isFavorite ? `Remove ${stock.ticker} from watchlist` : `Add ${stock.ticker} to watchlist`}
+                                            >
+                                                <Star size={16} fill={isFavorite ? 'currentColor' : 'none'} />
+                                            </button>
+                                            <div>
+                                                <div className="font-bold text-white mb-0.5">{stock.ticker}</div>
+                                                <div className="text-xs text-gray-400 truncate max-w-[120px]">{stock.name}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="p-4 py-3 text-white font-mono">
+                                        {formatPrice(stock.last_price)}
+                                    </td>
+                                    <td className={`p-4 py-3 font-bold ${stock.change_percent >= 0 ? 'text-idx-up' : 'text-idx-down'}`}>
+                                        <div className="flex items-center gap-1">
+                                            {stock.change_percent >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                                            {stock.change_percent}%
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                        {visibleStocks.length === 0 && !isLoading && (
                             <tr>
                                 <td colSpan="3" className="p-8 text-center text-gray-400">
-                                    No stocks found.
+                                    No stocks found for this filter.
+                                </td>
+                            </tr>
+                        )}
+                        {stocks.length === 0 && isLoading && (
+                            <tr>
+                                <td colSpan="3" className="p-8 text-center text-gray-400">
+                                    Searching...
                                 </td>
                             </tr>
                         )}
@@ -70,7 +165,6 @@ const StockTable = ({ stocks, onSelectStock, selectedTicker, page, setPage, tota
                 </table>
             </div>
 
-            {/* Pagination Controls */}
             <div className="p-3 border-t border-slate-700 flex justify-between items-center bg-slate-800">
                 <button
                     onClick={() => setPage(Math.max(1, page - 1))}

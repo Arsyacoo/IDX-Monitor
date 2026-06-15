@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: 'http://localhost:8000/api',
+    baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api',
 });
 
 export const fetchStocks = async ({ page = 1, limit = 10, search = '' }) => {
@@ -20,3 +20,4 @@ export const fetchWhaleAlerts = async () => {
     const response = await api.get('/whale-alerts');
     return response.data;
 };
+

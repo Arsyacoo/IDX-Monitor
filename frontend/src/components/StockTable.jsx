@@ -27,6 +27,7 @@ const StockTable = ({
     isLoading,
     watchlist,
     onToggleWatchlist,
+    showWatchlistOnly = false,
 }) => {
     const [localSearch, setLocalSearch] = useState(search);
     const [sortBy, setSortBy] = useState('ticker');
@@ -182,7 +183,7 @@ const StockTable = ({
                         {visibleStocks.length === 0 && !isLoading && (
                             <tr>
                                 <td colSpan="4" className="p-8 text-center text-gray-400">
-                                    No stocks found for this filter.
+                                    {showWatchlistOnly ? 'Your watchlist is empty on this page. Add stocks with the star button or switch pages.' : 'No stocks found for this filter.'}
                                 </td>
                             </tr>
                         )}

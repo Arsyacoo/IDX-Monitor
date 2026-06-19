@@ -1,19 +1,27 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, keepPreviousData } from '@tanstack/react-query';
-import WhaleAlerts from './components/WhaleAlerts';
 import StockTable from './components/StockTable';
-import StockChart from './components/StockChart';
 import { fetchStocks } from './api';
-import { LayoutDashboard, Radar, Clock } from 'lucide-react';
+import { LayoutDashboard, Radar, Clock, RefreshCw } from 'lucide-react';
+
+const StockChart = lazy(() => import('./components/StockChart'));
+const WhaleAlerts = lazy(() => import('./components/WhaleAlerts'));
 
 const queryClient = new QueryClient();
 const WATCHLIST_STORAGE_KEY = 'idx-monitor-watchlist';
+
+const PanelFallback = ({ label }) => (
+  <div className="bg-idx-card rounded-xl border border-slate-700 h-full flex items-center justify-center text-slate-400">
+    <div className="animate-pulse">Loading {label}...</div>
+  </div>
+);
 
 function Dashboard() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedTicker, setSelectedTicker] = useState('BBCA');
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
   const [watchlist, setWatchlist] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(WATCHLIST_STORAGE_KEY)) || [];
@@ -22,7 +30,7 @@ function Dashboard() {
     }
   });
 
-  const { data: stockData, isLoading, isFetching, error, dataUpdatedAt } = useQuery({
+  const { data: stockData, isLoading, isFetching, error, dataUpdatedAt, refetch } = useQuery({
     queryKey: ['stocks', page, search],
     queryFn: () => fetchStocks({ page, limit: 10, search }),
     refetchInterval: 10000,
@@ -42,9 +50,29 @@ function Dashboard() {
     ));
   };
 
-  const stocks = stockData?.data || [];
+  const clearWatchlist = () => {
+    setWatchlist([]);
+    setShowWatchlistOnly(false);
+  };
+
+  const stocks = useMemo(() => stockData?.data || [], [stockData]);
   const totalPages = stockData?.total_pages || 1;
   const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString('id-ID') : '-';
+  const visibleStocks = useMemo(() => (
+    showWatchlistOnly ? stocks.filter((stock) => watchlist.includes(stock.ticker)) : stocks
+  ), [showWatchlistOnly, stocks, watchlist]);
+
+  const toggleWatchlistMode = () => {
+    const nextValue = !showWatchlistOnly;
+    setShowWatchlistOnly(nextValue);
+
+    if (!nextValue) return;
+
+    const firstWatchlistStock = stocks.find((stock) => watchlist.includes(stock.ticker));
+    if (firstWatchlistStock && !watchlist.includes(selectedTicker)) {
+      setSelectedTicker(firstWatchlistStock.ticker);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-idx-dark text-idx-text font-sans flex flex-col">
@@ -57,21 +85,28 @@ function Dashboard() {
             <div className="flex gap-1 bg-slate-800 p-1 rounded-lg">
               <button
                 onClick={() => setCurrentView('dashboard')}
-                className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${currentView === 'dashboard' ? 'bg-idx-card text-white shadow' : 'text-gray-400 hover:text-white'
-                  }`}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${currentView === 'dashboard' ? 'bg-idx-card text-white shadow' : 'text-gray-400 hover:text-white'}`}
               >
                 <LayoutDashboard size={16} /> Market Data
               </button>
               <button
                 onClick={() => setCurrentView('whales')}
-                className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${currentView === 'whales' ? 'bg-idx-card text-white shadow' : 'text-gray-400 hover:text-white'
-                  }`}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${currentView === 'whales' ? 'bg-idx-card text-white shadow' : 'text-gray-400 hover:text-white'}`}
               >
                 <Radar size={16} /> Whale Alerts
               </button>
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {currentView === 'dashboard' && (
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className="hidden sm:flex text-xs text-slate-300 items-center gap-1.5 bg-slate-800 px-3 py-1 rounded-full border border-slate-700 hover:text-white"
+              >
+                <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} /> Refresh
+              </button>
+            )}
             {currentView === 'dashboard' && (
               <div className="hidden sm:flex text-xs text-slate-400 items-center gap-1.5 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
                 <Clock size={13} /> Updated {lastUpdated}
@@ -93,8 +128,20 @@ function Dashboard() {
                 <h1 className="text-2xl font-bold text-white">Market Overview</h1>
                 <p className="text-slate-400 text-sm">Real-time prices from Indonesia Stock Exchange</p>
               </div>
-              <div className="text-xs text-slate-400">
-                Auto refresh every 10 seconds - {watchlist.length} watchlist items
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                <span>Auto refresh every 10 seconds</span>
+                <button
+                  type="button"
+                  onClick={toggleWatchlistMode}
+                  className={`rounded-full border px-3 py-1 transition-colors ${showWatchlistOnly ? 'border-yellow-500/60 bg-yellow-500/10 text-yellow-300' : 'border-slate-700 bg-slate-800 text-slate-300 hover:text-white'}`}
+                >
+                  {showWatchlistOnly ? 'Showing Watchlist' : `${watchlist.length} watchlist items`}
+                </button>
+                {watchlist.length > 0 && (
+                  <button type="button" onClick={clearWatchlist} className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-slate-300 hover:text-white">
+                    Clear watchlist
+                  </button>
+                )}
               </div>
             </header>
 
@@ -108,7 +155,7 @@ function Dashboard() {
                   </div>
                 ) : (
                   <StockTable
-                    stocks={stocks}
+                    stocks={visibleStocks}
                     selectedTicker={selectedTicker}
                     onSelectStock={setSelectedTicker}
                     page={page}
@@ -119,17 +166,22 @@ function Dashboard() {
                     isLoading={isLoading || isFetching || stockData === undefined}
                     watchlist={watchlist}
                     onToggleWatchlist={toggleWatchlist}
+                    showWatchlistOnly={showWatchlistOnly}
                   />
                 )}
               </div>
 
               <div className="lg:col-span-8 h-full">
-                <StockChart ticker={selectedTicker} />
+                <Suspense fallback={<PanelFallback label="chart" />}>
+                  <StockChart ticker={selectedTicker} />
+                </Suspense>
               </div>
             </main>
           </div>
         ) : (
-          <WhaleAlerts />
+          <Suspense fallback={<PanelFallback label="whale alerts" />}>
+            <WhaleAlerts />
+          </Suspense>
         )}
       </div>
     </div>

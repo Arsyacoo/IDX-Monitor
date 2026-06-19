@@ -153,6 +153,7 @@ class StockSummary(BaseModel):
     name: str
     last_price: float
     change_percent: float
+    volume: int
 
 class StockListResponse(BaseModel):
     data: List[StockSummary]
@@ -170,6 +171,7 @@ class StockDetail(BaseModel):
     name: str
     last_price: float
     change_percent: float
+    period: str
     history: List[StockHistoryPoint]
 
 
@@ -219,15 +221,17 @@ async def get_stocks(page: int = 1, limit: int = 10, search: Optional[str] = Non
         
         # Get from CACHE if available, else default to 0
         cache_data = PRICE_CACHE.get(ticker_key, {
-            "last_price": 0.0, 
-            "change_percent": 0.0
+            "last_price": 0.0,
+            "change_percent": 0.0,
+            "volume": 0
         })
         
         results.append({
             "ticker": stock['ticker'],
             "name": stock['name'],
             "last_price": cache_data["last_price"],
-            "change_percent": round(cache_data["change_percent"], 2)
+            "change_percent": round(cache_data["change_percent"], 2),
+            "volume": int(cache_data.get("volume", 0) or 0)
         })
 
     return {
@@ -239,10 +243,13 @@ async def get_stocks(page: int = 1, limit: int = 10, search: Optional[str] = Non
     }
 
 @app.get("/api/stock/{ticker}", response_model=StockDetail)
-async def get_stock_detail(ticker: str):
+async def get_stock_detail(ticker: str, period: str = "1mo"):
     """
     Get detailed historical data for a stock.
     """
+    allowed_periods = {"5d", "1mo", "3mo", "6mo", "1y"}
+    if period not in allowed_periods:
+        raise HTTPException(status_code=400, detail="Invalid period. Use one of: 5d, 1mo, 3mo, 6mo, 1y")
     # Find name
     stock_info = next((s for s in STOCKS_DB if s["ticker"] == ticker.upper()), None)
     name = stock_info["name"] if stock_info else "Unknown Company"
@@ -272,9 +279,8 @@ async def get_stock_detail(ticker: str):
     try:
         stock = yf.Ticker(ticker_jk)
         
-        # Get history (1 month for the chart)
         # This might fail if rate limited
-        hist = stock.history(period="1mo")
+        hist = stock.history(period=period)
         
         for date, row in hist.iterrows():
             history_points.append({
@@ -291,6 +297,7 @@ async def get_stock_detail(ticker: str):
         "name": name,
         "last_price": current if current else 0.0,
         "change_percent": round(change_pct, 2),
+        "period": period,
         "history": history_points
     }
 

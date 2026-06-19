@@ -1,7 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Loader2, Star } from 'lucide-react';
 
-const formatPrice = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0);
+const formatPrice = (value) => new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    maximumFractionDigits: 0,
+}).format(value || 0);
+
+const formatVolume = (value) => {
+    const volume = Number(value || 0);
+    if (volume >= 1_000_000_000) return `${(volume / 1_000_000_000).toFixed(1)}B`;
+    if (volume >= 1_000_000) return `${(volume / 1_000_000).toFixed(1)}M`;
+    if (volume >= 1_000) return `${(volume / 1_000).toFixed(1)}K`;
+    return volume.toLocaleString('id-ID');
+};
 
 const StockTable = ({
     stocks,
@@ -40,16 +52,30 @@ const StockTable = ({
             if (filterBy === 'watchlist') return watchlist.includes(stock.ticker);
             if (filterBy === 'gainers') return stock.change_percent > 0;
             if (filterBy === 'losers') return stock.change_percent < 0;
+            if (filterBy === 'top-volume') return Number(stock.volume || 0) > 0;
             return true;
         });
 
         return [...filteredStocks].sort((firstStock, secondStock) => {
             if (sortBy === 'price-desc') return secondStock.last_price - firstStock.last_price;
+            if (sortBy === 'volume-desc') return (secondStock.volume || 0) - (firstStock.volume || 0);
             if (sortBy === 'change-desc') return secondStock.change_percent - firstStock.change_percent;
             if (sortBy === 'change-asc') return firstStock.change_percent - secondStock.change_percent;
             return firstStock.ticker.localeCompare(secondStock.ticker);
         });
     }, [stocks, filterBy, sortBy, watchlist]);
+
+    useEffect(() => {
+        if (filterBy === 'top-volume') {
+            setSortBy('volume-desc');
+        }
+        if (filterBy === 'gainers') {
+            setSortBy('change-desc');
+        }
+        if (filterBy === 'losers') {
+            setSortBy('change-asc');
+        }
+    }, [filterBy]);
 
     return (
         <div className="bg-idx-card rounded-xl shadow-lg border border-slate-700 overflow-hidden flex flex-col h-full">
@@ -81,8 +107,9 @@ const StockTable = ({
                     >
                         <option value="all">Semua saham</option>
                         <option value="watchlist">Watchlist</option>
-                        <option value="gainers">Gainers</option>
-                        <option value="losers">Losers</option>
+                        <option value="gainers">Top Gainers</option>
+                        <option value="losers">Top Losers</option>
+                        <option value="top-volume">Top Volume</option>
                     </select>
                     <select
                         value={sortBy}
@@ -92,6 +119,7 @@ const StockTable = ({
                         <option value="ticker">Ticker A-Z</option>
                         <option value="change-desc">Change tertinggi</option>
                         <option value="change-asc">Change terendah</option>
+                        <option value="volume-desc">Volume terbesar</option>
                         <option value="price-desc">Harga tertinggi</option>
                     </select>
                 </div>
@@ -103,6 +131,7 @@ const StockTable = ({
                         <tr>
                             <th className="p-4 font-semibold text-sm text-gray-300">Ticker</th>
                             <th className="p-4 font-semibold text-sm text-gray-300">Price</th>
+                            <th className="p-4 font-semibold text-sm text-gray-300">Vol</th>
                             <th className="p-4 font-semibold text-sm text-gray-300">Change</th>
                         </tr>
                     </thead>
@@ -131,12 +160,15 @@ const StockTable = ({
                                             </button>
                                             <div>
                                                 <div className="font-bold text-white mb-0.5">{stock.ticker}</div>
-                                                <div className="text-xs text-gray-400 truncate max-w-[120px]">{stock.name}</div>
+                                                <div className="text-xs text-gray-400 truncate max-w-[100px]">{stock.name}</div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="p-4 py-3 text-white font-mono">
+                                    <td className="p-4 py-3 text-white font-mono text-sm">
                                         {formatPrice(stock.last_price)}
+                                    </td>
+                                    <td className="p-4 py-3 text-slate-300 font-mono text-sm">
+                                        {formatVolume(stock.volume)}
                                     </td>
                                     <td className={`p-4 py-3 font-bold ${stock.change_percent >= 0 ? 'text-idx-up' : 'text-idx-down'}`}>
                                         <div className="flex items-center gap-1">
@@ -149,14 +181,14 @@ const StockTable = ({
                         })}
                         {visibleStocks.length === 0 && !isLoading && (
                             <tr>
-                                <td colSpan="3" className="p-8 text-center text-gray-400">
+                                <td colSpan="4" className="p-8 text-center text-gray-400">
                                     No stocks found for this filter.
                                 </td>
                             </tr>
                         )}
                         {stocks.length === 0 && isLoading && (
                             <tr>
-                                <td colSpan="3" className="p-8 text-center text-gray-400">
+                                <td colSpan="4" className="p-8 text-center text-gray-400">
                                     Searching...
                                 </td>
                             </tr>

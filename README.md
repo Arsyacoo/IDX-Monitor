@@ -1,99 +1,80 @@
-# IDX Monitor
+﻿# 🇮🇩 IDX Monitor
 
-**IDX Monitor** adalah dashboard real-time untuk memantau saham Indonesia (IDX) dengan market data, watchlist, chart interval, dan whale activity radar.
+**IDX Monitor** adalah dashboard *real-time* yang elegan dan canggih untuk memantau pasar saham Indonesia (Bursa Efek Indonesia / IDX). Dibangun dengan teknologi web modern, aplikasi ini memberikan wawasan mendalam tentang pergerakan harga saham dan aktivitas pasar yang tidak biasa ("Whale Activities") dalam antarmuka yang responsif dan memukau.
 
-## Fitur Utama
+## ✨ Fitur Utama
 
-- **Market Data Real-Time**: Harga, persentase perubahan, volume, filter, sorting, dan auto-refresh.
-- **Watchlist Lokal**: Simpan saham favorit di browser menggunakan `localStorage`.
-- **Chart Interaktif**: Interval `5D`, `1M`, `3M`, `6M`, dan `1Y`.
-- **Whale Alerts**: Filter threshold volume ratio, signal, sorting, dan manual refresh.
-- **Health API**: Endpoint `/api/health` untuk memantau cache backend.
-- **CI Ready**: GitHub Actions untuk test backend, lint frontend, dan build frontend.
+*   **📈 Monitoring Real-Time**: Pantau harga saham terkini, persentase perubahan, dan status pasar secara langsung.
+*   **🐋 Whale Alerts**: Fitur unggulan untuk mendeteksi lonjakan volume transaksi yang tidak wajar, membantu Anda mengidentifikasi akumulasi besar-besaran oleh investor institusi ("Bandar").
+*   **📊 Visualisasi Interaktif**: Grafik harga historis yang responsif untuk analisis teknikal cepat.
+*   **🔍 Pencarian Pintar**: Cari emiten favorit Anda dengan mudah dan cepat.
+*   **🎨 Desain Premium**: Antarmuka gelap (Dark Mode) yang modern, bersih, dan nyaman di mata, dirancang untuk pengalaman pengguna terbaik.
 
-## Teknologi
+## 🛠️ Teknologi yang Digunakan
+
+Project ini dibangun menggunakan *stack* teknologi terkini untuk performa dan skalabilitas maksimal:
 
 ### Frontend
-- React + Vite
-- Tailwind CSS
-- TanStack Query
-- Recharts
-- Lucide React
+*   **React + Vite**: Untuk performa UI yang super cepat.
+*   **Tailwind CSS**: Untuk styling yang konsisten dan modern.
+*   **TanStack Query**: Manajemen state server yang efisien (caching, auto-refetching).
+*   **Recharts**: Visualisasi data yang cantik dan informatif.
+*   **Lucide React**: Ikonografi yang tajam dan konsisten.
 
 ### Backend
-- FastAPI
-- yfinance
-- Pydantic
-- pytest
+*   **FastAPI**: Framework Python berkinerja tinggi untuk API.
+*   **yfinance**: Pengambilan data pasar saham *real-time*.
+*   **Python 3.10+**: Bahasa pemrograman utama untuk logika backend.
 
-## Cara Menjalankan
+## 🚀 Cara Menjalankan
+
+Ikuti langkah-langkah mudah ini untuk menjalankan IDX Monitor di komputer Anda:
 
 ### Prasyarat
-- Node.js 20+
-- Python 3.10+
-- Git
+Pastikan Anda sudah menginstall:
+*   [Node.js](https://nodejs.org/) (untuk frontend)
+*   [Python](https://python.org/) (untuk backend)
+*   Git
 
-### Backend
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload
-```
+### Instalasi & Menjalankan
 
-Backend berjalan di `http://localhost:8000`.
+1.  **Clone Repository**
+    ```bash
+    git clone https://github.com/Arsyacoo/IDX-Monitor.git
+    cd IDX-Monitor
+    ```
 
-### Frontend
-```bash
-cd frontend
-npm install
-npm run dev
-```
+2.  **Jalankan Aplikasi (Cara Cepat)**
+    Pengguna Windows cukup mengklik ganda file `run_app.bat` di folder root. Script ini akan otomatis menginstal dependensi dan menjalankan backend serta frontend secara bersamaan.
 
-Frontend berjalan di `http://localhost:5173`.
+3.  **Jalankan Secara Manual**
 
-### Environment
-Frontend dapat diarahkan ke backend lain dengan membuat `frontend/.env`:
+    *   **Backend (Terminal 1)**
+        ```bash
+        cd backend
+        pip install -r requirements.txt
+        uvicorn main:app --reload
+        ```
+    
+    *   **Frontend (Terminal 2)**
+        ```bash
+        cd frontend
+        npm install
+        npm run dev
+        ```
 
-```env
-VITE_API_BASE_URL=http://localhost:8000/api
-```
+4.  Buka browser dan akses `http://localhost:5173` (atau port yang tertera di terminal).
 
-Contoh tersedia di `frontend/.env.example`.
+## 📸 Preview
 
-## Validasi
+*Dashboard saham dengan grafik interaktif dan daftar saham yang responsif.*
 
-### Backend
-```bash
-cd backend
-python -m pytest
-```
+<img width="1362" height="983" alt="image" src="https://github.com/user-attachments/assets/52738bb0-12af-4746-b29b-a3636a7bf298" />
 
-### Frontend
-```bash
-cd frontend
-npm run lint
-npm run build
-```
+## 🤝 Kontribusi
 
-## API Penting
-
-- `GET /` - root status
-- `GET /api/health` - status backend dan cache
-- `GET /api/stocks?page=1&limit=10` - daftar saham
-- `GET /api/stock/BBCA?period=3mo` - detail dan histori saham
-- `GET /api/whale-alerts` - sinyal volume tidak biasa
-
-## Deployment
-
-Lihat panduan lengkap di `docs/DEPLOYMENT.md`.
-
-## Preview
-
-<img width="1362" height="983" alt="IDX Monitor Preview" src="https://github.com/user-attachments/assets/52738bb0-12af-4746-b29b-a3636a7bf298" />
-
-## Kontribusi
-
-Kontribusi selalu diterima melalui Issue atau Pull Request.
+Kontribusi selalu diterima! Jangan ragu untuk membuka *Issue* atau *Pull Request* jika Anda memiliki ide perbaikan atau fitur baru.
 
 ---
-Dibuat oleh [Arsyacoo](https://github.com/Arsyacoo)
+Dibuat dengan ❤️ oleh [Arsyacoo](https://github.com/Arsyacoo)
+

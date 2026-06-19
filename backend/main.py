@@ -48,9 +48,26 @@ CACHE_STATUS = {
     "last_error": None,
     "is_updating": False,
 }
+VALID_HISTORY_PERIODS = {"5d", "1mo", "3mo", "6mo", "1y"}
 
 def utc_now_iso():
     return datetime.now(timezone.utc).isoformat()
+
+def build_stock_summary(stock):
+    ticker_key = f"{stock['ticker']}.JK"
+    cache_data = PRICE_CACHE.get(ticker_key, {
+        "last_price": 0.0,
+        "change_percent": 0.0,
+        "volume": 0,
+    })
+
+    return {
+        "ticker": stock["ticker"],
+        "name": stock["name"],
+        "last_price": cache_data["last_price"],
+        "change_percent": round(cache_data["change_percent"], 2),
+        "volume": int(cache_data.get("volume", 0) or 0),
+    }
 
 async def update_prices_background():
     """
@@ -214,25 +231,7 @@ async def get_stocks(page: int = 1, limit: int = 10, search: Optional[str] = Non
     end_idx = start_idx + limit
     paginated_stocks = filtered_stocks[start_idx:end_idx]
     
-    results = []
-    
-    for stock in paginated_stocks:
-        ticker_key = f"{stock['ticker']}.JK"
-        
-        # Get from CACHE if available, else default to 0
-        cache_data = PRICE_CACHE.get(ticker_key, {
-            "last_price": 0.0,
-            "change_percent": 0.0,
-            "volume": 0
-        })
-        
-        results.append({
-            "ticker": stock['ticker'],
-            "name": stock['name'],
-            "last_price": cache_data["last_price"],
-            "change_percent": round(cache_data["change_percent"], 2),
-            "volume": int(cache_data.get("volume", 0) or 0)
-        })
+    results = [build_stock_summary(stock) for stock in paginated_stocks]
 
     return {
         "data": results,
@@ -247,8 +246,7 @@ async def get_stock_detail(ticker: str, period: str = "1mo"):
     """
     Get detailed historical data for a stock.
     """
-    allowed_periods = {"5d", "1mo", "3mo", "6mo", "1y"}
-    if period not in allowed_periods:
+    if period not in VALID_HISTORY_PERIODS:
         raise HTTPException(status_code=400, detail="Invalid period. Use one of: 5d, 1mo, 3mo, 6mo, 1y")
     # Find name
     stock_info = next((s for s in STOCKS_DB if s["ticker"] == ticker.upper()), None)

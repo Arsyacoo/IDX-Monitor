@@ -19,6 +19,20 @@ const formatPrice = (value) => new Intl.NumberFormat('id-ID', {
     maximumFractionDigits: 0,
 }).format(value || 0);
 
+const formatDataSource = (source) => ({
+    yahoo_chart: 'Yahoo Chart API',
+    history_cache: 'History Cache',
+    stale_history_cache: 'Stale Cache',
+    yfinance_fallback: 'yfinance Fallback',
+    price_cache: 'Price Cache',
+    unavailable: 'Unavailable',
+}[source] || source || 'Unknown');
+
+const formatUpdatedAt = (value) => {
+    if (!value) return '-';
+    return new Date(value).toLocaleTimeString('id-ID');
+};
+
 const StockChart = ({ ticker }) => {
     const [period, setPeriod] = useState('1mo');
     const { data: stockDetail, isLoading, isFetching, error } = useQuery({
@@ -90,6 +104,12 @@ const StockChart = ({ ticker }) => {
                     <div className="text-gray-400 text-xs mt-1">
                         {isFetching ? 'Refreshing chart...' : `Period: ${stockDetail.period.toUpperCase()}`}
                     </div>
+                    <div className="text-slate-500 text-xs mt-1">
+                        Source: {formatDataSource(stockDetail.data_source)}
+                    </div>
+                    <div className="text-slate-500 text-xs mt-1">
+                        Data updated: {formatUpdatedAt(stockDetail.last_updated_at)}
+                    </div>
                 </div>
             </div>
 
@@ -101,7 +121,7 @@ const StockChart = ({ ticker }) => {
                 )}
                 {!hasHistory ? (
                     <div className="h-full flex items-center justify-center text-slate-400 border border-dashed border-slate-700 rounded-xl">
-                        No historical data available for this period.
+                        No historical data available for this period. Data source: {formatDataSource(stockDetail.data_source)}
                     </div>
                 ) : (
                     <ResponsiveContainer width="100%" height="100%">

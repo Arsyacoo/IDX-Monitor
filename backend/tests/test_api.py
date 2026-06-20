@@ -1,6 +1,13 @@
 from fastapi.testclient import TestClient
 
-from main import app, build_stock_summary, PRICE_CACHE
+from main import (
+    app,
+    build_stock_summary,
+    HISTORY_CACHE,
+    PRICE_CACHE,
+    is_history_cache_fresh,
+    utc_now_iso,
+)
 
 client = TestClient(app)
 
@@ -13,6 +20,8 @@ def test_health_endpoint_returns_cache_status():
     assert payload['status'] in {'ok', 'degraded'}
     assert payload['total_stocks'] > 0
     assert 'cache_coverage_percent' in payload
+    assert 'cached_histories' in payload
+    assert payload['history_cache_ttl_seconds'] > 0
 
 
 def test_stock_summary_includes_volume_from_cache():
@@ -40,3 +49,31 @@ def test_invalid_stock_period_is_rejected():
 
     assert response.status_code == 400
     assert 'Invalid period' in response.json()['detail']
+
+
+def test_history_cache_freshness_uses_cached_at():
+    assert is_history_cache_fresh({'cached_at': utc_now_iso()}) is True
+    assert is_history_cache_fresh({}) is False
+    assert is_history_cache_fresh(None) is False
+
+
+def test_stock_detail_can_return_history_cache_without_external_fetch():
+    cache_key = 'TEST.JK:1mo'
+    HISTORY_CACHE[cache_key] = {
+        'last_price': 1000.0,
+        'change_percent': 1.5,
+        'history': [{'date': '2026-01-01', 'price': 1000.0}],
+        'cached_at': utc_now_iso(),
+    }
+
+    response = client.get('/api/stock/TEST?period=1mo')
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['ticker'] == 'TEST'
+    assert payload['last_price'] == 1000.0
+    assert payload['data_source'] == 'history_cache'
+    assert payload['last_updated_at'] is not None
+    assert payload['history'] == [{'date': '2026-01-01', 'price': 1000.0}]
+
+    HISTORY_CACHE.pop(cache_key, None)

@@ -9,6 +9,7 @@ import asyncio
 import json
 import os
 import math
+import requests
 
 app = FastAPI(title="IDX Stock Dashboard API")
 
@@ -42,6 +43,8 @@ except Exception as e:
 # Global cache for real-time prices
 # Structure: { "BBCA.JK": { "last_price": 5000, "change_percent": 1.5, "volume": 100000, "prev_close": 4900 } }
 PRICE_CACHE = {}
+HISTORY_CACHE = {}
+HISTORY_CACHE_TTL_SECONDS = 600
 CACHE_STATUS = {
     "last_update_started_at": None,
     "last_update_completed_at": None,
@@ -49,9 +52,61 @@ CACHE_STATUS = {
     "is_updating": False,
 }
 VALID_HISTORY_PERIODS = {"5d", "1mo", "3mo", "6mo", "1y"}
+YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
 
 def utc_now_iso():
     return datetime.now(timezone.utc).isoformat()
+
+def is_history_cache_fresh(cache_entry):
+    if not cache_entry:
+        return False
+    cached_at = cache_entry.get("cached_at")
+    if not cached_at:
+        return False
+    age = (datetime.now(timezone.utc) - datetime.fromisoformat(cached_at)).total_seconds()
+    return age < HISTORY_CACHE_TTL_SECONDS
+
+def fetch_yahoo_chart(ticker_jk, period):
+    response = requests.get(
+        YAHOO_CHART_URL.format(ticker=ticker_jk),
+        params={"range": period, "interval": "1d"},
+        headers={"User-Agent": "Mozilla/5.0"},
+        timeout=10,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    result = payload.get("chart", {}).get("result") or []
+    if not result:
+        return None
+
+    chart = result[0]
+    meta = chart.get("meta", {})
+    timestamps = chart.get("timestamp") or []
+    quote = (chart.get("indicators", {}).get("quote") or [{}])[0]
+    closes = quote.get("close") or []
+    volumes = quote.get("volume") or []
+
+    history = []
+    for timestamp, close in zip(timestamps, closes):
+        if close is None:
+            continue
+        history.append({
+            "date": datetime.fromtimestamp(timestamp, timezone.utc).astimezone().strftime("%Y-%m-%d"),
+            "price": close,
+        })
+
+    current = meta.get("regularMarketPrice") or (history[-1]["price"] if history else 0.0)
+    previous = meta.get("chartPreviousClose") or meta.get("previousClose") or current
+    change_pct = ((current - previous) / previous * 100) if previous else 0.0
+
+    return {
+        "current": current or 0.0,
+        "change_percent": change_pct,
+        "volume": meta.get("regularMarketVolume") or (volumes[-1] if volumes else 0),
+        "history": history,
+        "data_source": "yahoo_chart",
+        "last_updated_at": utc_now_iso(),
+    }
 
 def build_stock_summary(stock):
     ticker_key = f"{stock['ticker']}.JK"
@@ -159,6 +214,8 @@ class HealthResponse(BaseModel):
     status: str
     total_stocks: int
     cached_stocks: int
+    cached_histories: int
+    history_cache_ttl_seconds: int
     cache_coverage_percent: float
     is_updating: bool
     last_update_started_at: Optional[str]
@@ -189,6 +246,8 @@ class StockDetail(BaseModel):
     last_price: float
     change_percent: float
     period: str
+    data_source: str
+    last_updated_at: Optional[str]
     history: List[StockHistoryPoint]
 
 
@@ -202,6 +261,8 @@ def get_health():
         "status": "ok" if CACHE_STATUS["last_error"] is None else "degraded",
         "total_stocks": total_stocks,
         "cached_stocks": cached_stocks,
+        "cached_histories": len(HISTORY_CACHE),
+        "history_cache_ttl_seconds": HISTORY_CACHE_TTL_SECONDS,
         "cache_coverage_percent": round(coverage, 2),
         "is_updating": CACHE_STATUS["is_updating"],
         "last_update_started_at": CACHE_STATUS["last_update_started_at"],
@@ -254,48 +315,93 @@ async def get_stock_detail(ticker: str, period: str = "1mo"):
     
     ticker_jk = f"{ticker.upper()}.JK"
     
-    # 1. Try to get price from Cache first (Instant)
+    cache_key = f"{ticker_jk}:{period}"
+    cached_history = HISTORY_CACHE.get(cache_key)
     current = 0.0
     change_pct = 0.0
-    
-    if ticker_jk in PRICE_CACHE:
+    history_points = []
+    data_source = "unavailable"
+    last_updated_at = None
+
+    if is_history_cache_fresh(cached_history):
+        current = cached_history["last_price"]
+        change_pct = cached_history["change_percent"]
+        history_points = cached_history["history"]
+        data_source = "history_cache"
+        last_updated_at = cached_history["cached_at"]
+    else:
+        try:
+            chart_data = fetch_yahoo_chart(ticker_jk, period)
+            if chart_data:
+                current = chart_data["current"]
+                change_pct = chart_data["change_percent"]
+                history_points = chart_data["history"]
+                data_source = chart_data["data_source"]
+                last_updated_at = chart_data["last_updated_at"]
+                PRICE_CACHE[ticker_jk] = {
+                    "last_price": current,
+                    "change_percent": change_pct,
+                    "volume": chart_data["volume"],
+                    "prev_close": current / (1 + (change_pct / 100)) if change_pct != -100 else current,
+                }
+                HISTORY_CACHE[cache_key] = {
+                    "last_price": current,
+                    "change_percent": change_pct,
+                    "history": history_points,
+                    "cached_at": last_updated_at,
+                }
+        except Exception as e:
+            print(f"Warning: Yahoo chart API failed for {ticker}: {e}")
+
+    if not history_points and cached_history:
+        current = cached_history["last_price"]
+        change_pct = cached_history["change_percent"]
+        history_points = cached_history["history"]
+        data_source = "stale_history_cache"
+        last_updated_at = cached_history["cached_at"]
+
+    if not current and ticker_jk in PRICE_CACHE:
         cache = PRICE_CACHE[ticker_jk]
         current = cache.get("last_price", 0.0)
         change_pct = cache.get("change_percent", 0.0)
-    else:
-        # 2. Fallback to fast_info if not in cache
+        if data_source == "unavailable":
+            data_source = "price_cache"
+
+    if not history_points:
         try:
             stock = yf.Ticker(ticker_jk)
-            current = stock.fast_info.last_price
-            prev = stock.fast_info.previous_close
-            if prev and prev != 0:
-                change_pct = ((current - prev) / prev) * 100
-        except:
-            pass
+            if not current:
+                current = stock.fast_info.last_price
+                prev = stock.fast_info.previous_close
+                if prev and prev != 0:
+                    change_pct = ((current - prev) / prev) * 100
 
-    history_points = []
-    try:
-        stock = yf.Ticker(ticker_jk)
-        
-        # This might fail if rate limited
-        hist = stock.history(period=period)
-        
-        for date, row in hist.iterrows():
-            history_points.append({
-                "date": date.strftime("%Y-%m-%d"),
-                "price": row['Close']
-            })
-    except Exception as e:
-        print(f"Warning: Failed to fetch history for {ticker}: {e}")
-        # Return empty history rather than failing the whole request
-        pass
-        
+            hist = stock.history(period=period)
+            for date, row in hist.iterrows():
+                history_points.append({
+                    "date": date.strftime("%Y-%m-%d"),
+                    "price": row['Close']
+                })
+            if history_points:
+                data_source = "yfinance_fallback"
+                last_updated_at = utc_now_iso()
+                HISTORY_CACHE[cache_key] = {
+                    "last_price": current if current else history_points[-1]["price"],
+                    "change_percent": change_pct,
+                    "history": history_points,
+                    "cached_at": last_updated_at,
+                }
+        except Exception as e:
+            print(f"Warning: Failed to fetch history for {ticker}: {e}")
+
     return {
         "ticker": ticker.upper(),
         "name": name,
         "last_price": current if current else 0.0,
         "change_percent": round(change_pct, 2),
         "period": period,
+        "data_source": data_source,
+        "last_updated_at": last_updated_at,
         "history": history_points
     }
 

@@ -5,7 +5,7 @@ import { AlertTriangle, TrendingUp, BarChart2, RefreshCw, SlidersHorizontal } fr
 
 const formatMillions = (value) => `${((value || 0) / 1000000).toFixed(1)}M`;
 
-const WhaleAlerts = () => {
+const WhaleAlerts = ({ onOpenTicker }) => {
     const [minRatio, setMinRatio] = useState(1.2);
     const [signalFilter, setSignalFilter] = useState('all');
     const [sortBy, setSortBy] = useState('ratio-desc');
@@ -109,7 +109,12 @@ const WhaleAlerts = () => {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filteredAlerts.map((alert) => (
-                            <div key={alert.ticker} className="bg-idx-card rounded-xl p-6 border border-slate-700 shadow-lg relative overflow-hidden group hover:border-idx-accent transition-colors">
+                            <button
+                                key={alert.ticker}
+                                type="button"
+                                onClick={() => onOpenTicker?.(alert.ticker)}
+                                className="bg-idx-card rounded-xl p-6 border border-slate-700 shadow-lg relative overflow-hidden group hover:border-idx-accent transition-colors text-left focus:outline-none focus:ring-2 focus:ring-idx-accent"
+                            >
                                 <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
                                     <TrendingUp size={80} />
                                 </div>
@@ -154,7 +159,7 @@ const WhaleAlerts = () => {
                                         {alert.signal}
                                     </span>
                                 </div>
-                            </div>
+                            </button>
                         ))}
                     </div>
                 )}

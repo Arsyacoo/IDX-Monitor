@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, keepPreviousData } from '@tanstack/react-query';
 import StockTable from './components/StockTable';
 import { fetchStocks } from './api';
-import { LayoutDashboard, Radar, Clock, RefreshCw } from 'lucide-react';
+import { Activity, BarChart3, LayoutDashboard, Radar, Clock, RefreshCw, TrendingDown, TrendingUp } from 'lucide-react';
 
 const StockChart = lazy(() => import('./components/StockChart'));
 const WhaleAlerts = lazy(() => import('./components/WhaleAlerts'));
@@ -15,6 +15,37 @@ const PanelFallback = ({ label }) => (
     <div className="animate-pulse">Loading {label}...</div>
   </div>
 );
+
+const formatCompact = (value) => new Intl.NumberFormat('id-ID', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+}).format(value || 0);
+
+const SummaryCard = ({ label, value, helper, icon, tone = 'slate' }) => {
+  const IconComponent = icon;
+  const toneClass = {
+    green: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+    red: 'text-red-400 bg-red-500/10 border-red-500/20',
+    blue: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+    yellow: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20',
+    slate: 'text-slate-300 bg-slate-800 border-slate-700',
+  }[tone];
+
+  return (
+    <div className="rounded-xl border border-slate-700 bg-idx-card p-4 shadow-lg">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+          <div className="mt-2 text-2xl font-bold text-white">{value}</div>
+          <p className="mt-1 text-xs text-slate-400">{helper}</p>
+        </div>
+        <div className={`rounded-lg border p-2 ${toneClass}`}>
+          <IconComponent size={18} />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 function Dashboard() {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -61,6 +92,29 @@ function Dashboard() {
   const visibleStocks = useMemo(() => (
     showWatchlistOnly ? stocks.filter((stock) => watchlist.includes(stock.ticker)) : stocks
   ), [showWatchlistOnly, stocks, watchlist]);
+  const marketSummary = useMemo(() => {
+    const gainers = stocks.filter((stock) => stock.change_percent > 0).length;
+    const losers = stocks.filter((stock) => stock.change_percent < 0).length;
+    const unchanged = stocks.filter((stock) => stock.change_percent === 0).length;
+    const topVolume = stocks.reduce((highest, stock) => (
+      (stock.volume || 0) > (highest.volume || 0) ? stock : highest
+    ), { ticker: '-', volume: 0 });
+
+    return {
+      loaded: stocks.length,
+      gainers,
+      losers,
+      unchanged,
+      topVolume,
+    };
+  }, [stocks]);
+
+  const openTickerFromAlert = (ticker) => {
+    setSelectedTicker(ticker);
+    setCurrentView('dashboard');
+    setSearch(ticker);
+    setPage(1);
+  };
 
   const toggleWatchlistMode = () => {
     const nextValue = !showWatchlistOnly;
@@ -145,7 +199,14 @@ function Dashboard() {
               </div>
             </header>
 
-            <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-220px)]">
+            <section className="max-w-7xl mx-auto mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <SummaryCard label="Loaded" value={marketSummary.loaded} helper="Stocks on this page" icon={Activity} tone="blue" />
+              <SummaryCard label="Gainers" value={marketSummary.gainers} helper={`${marketSummary.unchanged} unchanged`} icon={TrendingUp} tone="green" />
+              <SummaryCard label="Losers" value={marketSummary.losers} helper="Negative movers" icon={TrendingDown} tone="red" />
+              <SummaryCard label="Top Volume" value={marketSummary.topVolume.ticker} helper={formatCompact(marketSummary.topVolume.volume)} icon={BarChart3} tone="yellow" />
+            </section>
+
+            <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-360px)] min-h-[560px]">
               <div className="lg:col-span-4 h-full">
                 {isLoading && !stocks.length ? (
                   <div className="h-full bg-idx-card rounded-xl animate-pulse"></div>
@@ -180,7 +241,7 @@ function Dashboard() {
           </div>
         ) : (
           <Suspense fallback={<PanelFallback label="whale alerts" />}>
-            <WhaleAlerts />
+            <WhaleAlerts onOpenTicker={openTickerFromAlert} />
           </Suspense>
         )}
       </div>

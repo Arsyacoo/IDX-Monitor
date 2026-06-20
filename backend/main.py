@@ -103,6 +103,10 @@ def fetch_yahoo_chart(ticker_jk, period):
         "current": current or 0.0,
         "change_percent": change_pct,
         "volume": meta.get("regularMarketVolume") or (volumes[-1] if volumes else 0),
+        "open": meta.get("regularMarketOpen") or 0.0,
+        "high": meta.get("regularMarketDayHigh") or 0.0,
+        "low": meta.get("regularMarketDayLow") or 0.0,
+        "previous_close": previous or 0.0,
         "history": history,
         "data_source": "yahoo_chart",
         "last_updated_at": utc_now_iso(),
@@ -248,6 +252,11 @@ class StockDetail(BaseModel):
     period: str
     data_source: str
     last_updated_at: Optional[str]
+    open: float
+    high: float
+    low: float
+    previous_close: float
+    volume: int
     history: List[StockHistoryPoint]
 
 
@@ -322,11 +331,19 @@ async def get_stock_detail(ticker: str, period: str = "1mo"):
     history_points = []
     data_source = "unavailable"
     last_updated_at = None
+    detail_metrics = {
+        "open": 0.0,
+        "high": 0.0,
+        "low": 0.0,
+        "previous_close": 0.0,
+        "volume": 0,
+    }
 
     if is_history_cache_fresh(cached_history):
         current = cached_history["last_price"]
         change_pct = cached_history["change_percent"]
         history_points = cached_history["history"]
+        detail_metrics = cached_history.get("metrics", detail_metrics)
         data_source = "history_cache"
         last_updated_at = cached_history["cached_at"]
     else:
@@ -338,16 +355,24 @@ async def get_stock_detail(ticker: str, period: str = "1mo"):
                 history_points = chart_data["history"]
                 data_source = chart_data["data_source"]
                 last_updated_at = chart_data["last_updated_at"]
+                detail_metrics = {
+                    "open": chart_data["open"],
+                    "high": chart_data["high"],
+                    "low": chart_data["low"],
+                    "previous_close": chart_data["previous_close"],
+                    "volume": int(chart_data["volume"] or 0),
+                }
                 PRICE_CACHE[ticker_jk] = {
                     "last_price": current,
                     "change_percent": change_pct,
                     "volume": chart_data["volume"],
-                    "prev_close": current / (1 + (change_pct / 100)) if change_pct != -100 else current,
+                    "prev_close": chart_data["previous_close"],
                 }
                 HISTORY_CACHE[cache_key] = {
                     "last_price": current,
                     "change_percent": change_pct,
                     "history": history_points,
+                    "metrics": detail_metrics,
                     "cached_at": last_updated_at,
                 }
         except Exception as e:
@@ -357,6 +382,7 @@ async def get_stock_detail(ticker: str, period: str = "1mo"):
         current = cached_history["last_price"]
         change_pct = cached_history["change_percent"]
         history_points = cached_history["history"]
+        detail_metrics = cached_history.get("metrics", detail_metrics)
         data_source = "stale_history_cache"
         last_updated_at = cached_history["cached_at"]
 
@@ -364,6 +390,8 @@ async def get_stock_detail(ticker: str, period: str = "1mo"):
         cache = PRICE_CACHE[ticker_jk]
         current = cache.get("last_price", 0.0)
         change_pct = cache.get("change_percent", 0.0)
+        detail_metrics["previous_close"] = cache.get("prev_close", 0.0)
+        detail_metrics["volume"] = int(cache.get("volume", 0) or 0)
         if data_source == "unavailable":
             data_source = "price_cache"
 
@@ -385,10 +413,13 @@ async def get_stock_detail(ticker: str, period: str = "1mo"):
             if history_points:
                 data_source = "yfinance_fallback"
                 last_updated_at = utc_now_iso()
+                if not current and history_points:
+                    current = history_points[-1]["price"]
                 HISTORY_CACHE[cache_key] = {
-                    "last_price": current if current else history_points[-1]["price"],
+                    "last_price": current,
                     "change_percent": change_pct,
                     "history": history_points,
+                    "metrics": detail_metrics,
                     "cached_at": last_updated_at,
                 }
         except Exception as e:
@@ -402,6 +433,11 @@ async def get_stock_detail(ticker: str, period: str = "1mo"):
         "period": period,
         "data_source": data_source,
         "last_updated_at": last_updated_at,
+        "open": detail_metrics["open"],
+        "high": detail_metrics["high"],
+        "low": detail_metrics["low"],
+        "previous_close": detail_metrics["previous_close"],
+        "volume": int(detail_metrics["volume"] or 0),
         "history": history_points
     }
 

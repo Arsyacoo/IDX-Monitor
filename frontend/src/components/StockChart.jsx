@@ -19,6 +19,18 @@ const formatPrice = (value) => new Intl.NumberFormat('id-ID', {
     maximumFractionDigits: 0,
 }).format(value || 0);
 
+const formatVolume = (value) => new Intl.NumberFormat('id-ID', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+}).format(value || 0);
+
+const MetricCard = ({ label, value }) => (
+    <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-3">
+        <div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
+        <div className="mt-1 font-mono text-sm font-semibold text-slate-100">{value}</div>
+    </div>
+);
+
 const formatDataSource = (source) => ({
     yahoo_chart: 'Yahoo Chart API',
     history_cache: 'History Cache',
@@ -113,7 +125,15 @@ const StockChart = ({ ticker }) => {
                 </div>
             </div>
 
-            <div className="flex-1 w-full min-h-[300px] relative">
+            <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">
+                <MetricCard label="Open" value={formatPrice(stockDetail.open)} />
+                <MetricCard label="High" value={formatPrice(stockDetail.high)} />
+                <MetricCard label="Low" value={formatPrice(stockDetail.low)} />
+                <MetricCard label="Prev Close" value={formatPrice(stockDetail.previous_close)} />
+                <MetricCard label="Volume" value={formatVolume(stockDetail.volume)} />
+            </div>
+
+            <div className="flex-1 w-full min-h-[260px] relative">
                 {isFetching && (
                     <div className="absolute right-3 top-3 z-10 rounded-full bg-slate-900/80 px-3 py-1 text-xs text-idx-accent border border-slate-700">
                         Updating

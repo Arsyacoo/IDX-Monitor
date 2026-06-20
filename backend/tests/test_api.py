@@ -63,6 +63,13 @@ def test_stock_detail_can_return_history_cache_without_external_fetch():
         'last_price': 1000.0,
         'change_percent': 1.5,
         'history': [{'date': '2026-01-01', 'price': 1000.0}],
+        'metrics': {
+            'open': 990.0,
+            'high': 1010.0,
+            'low': 980.0,
+            'previous_close': 985.0,
+            'volume': 123456,
+        },
         'cached_at': utc_now_iso(),
     }
 
@@ -74,6 +81,11 @@ def test_stock_detail_can_return_history_cache_without_external_fetch():
     assert payload['last_price'] == 1000.0
     assert payload['data_source'] == 'history_cache'
     assert payload['last_updated_at'] is not None
+    assert payload['open'] == 990.0
+    assert payload['high'] == 1010.0
+    assert payload['low'] == 980.0
+    assert payload['previous_close'] == 985.0
+    assert payload['volume'] == 123456
     assert payload['history'] == [{'date': '2026-01-01', 'price': 1000.0}]
 
     HISTORY_CACHE.pop(cache_key, None)

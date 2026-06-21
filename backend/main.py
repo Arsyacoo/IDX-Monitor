@@ -1,7 +1,6 @@
 import yfinance as yf
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timezone
 import random
@@ -11,12 +10,24 @@ import os
 import math
 import requests
 
+from cache import CACHE_STATUS, HISTORY_CACHE, PRICE_CACHE, is_history_cache_fresh, utc_now_iso
+from config import (
+    CORS_ORIGINS,
+    HISTORY_CACHE_TTL_SECONDS,
+    PRICE_BATCH_DELAY_SECONDS,
+    PRICE_BATCH_SIZE,
+    PRICE_REFRESH_INTERVAL_SECONDS,
+    VALID_HISTORY_PERIODS,
+    YAHOO_CHART_URL,
+)
+from models import HealthResponse, StockDetail, StockListResponse, WhaleAlert
+
 app = FastAPI(title="IDX Stock Dashboard API")
 
 # Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify the frontend origin
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -39,32 +50,6 @@ except Exception as e:
         {"ticker": "BBCA", "name": "Bank Central Asia Tbk"},
         {"ticker": "BBRI", "name": "Bank Rakyat Indonesia (Persero) Tbk"},
     ]
-
-# Global cache for real-time prices
-# Structure: { "BBCA.JK": { "last_price": 5000, "change_percent": 1.5, "volume": 100000, "prev_close": 4900 } }
-PRICE_CACHE = {}
-HISTORY_CACHE = {}
-HISTORY_CACHE_TTL_SECONDS = 600
-CACHE_STATUS = {
-    "last_update_started_at": None,
-    "last_update_completed_at": None,
-    "last_error": None,
-    "is_updating": False,
-}
-VALID_HISTORY_PERIODS = {"5d", "1mo", "3mo", "6mo", "1y"}
-YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
-
-def utc_now_iso():
-    return datetime.now(timezone.utc).isoformat()
-
-def is_history_cache_fresh(cache_entry):
-    if not cache_entry:
-        return False
-    cached_at = cache_entry.get("cached_at")
-    if not cached_at:
-        return False
-    age = (datetime.now(timezone.utc) - datetime.fromisoformat(cached_at)).total_seconds()
-    return age < HISTORY_CACHE_TTL_SECONDS
 
 def fetch_yahoo_chart(ticker_jk, period):
     response = requests.get(
@@ -134,7 +119,7 @@ async def update_prices_background():
     This avoids blocking the search endpoint with slow API calls.
     """
     print("Background price update task started.")
-    batch_size = 50
+    batch_size = PRICE_BATCH_SIZE
     while True:
         try:
             CACHE_STATUS["is_updating"] = True
@@ -193,14 +178,14 @@ async def update_prices_background():
                     print(f"Error updating batch {i}: {batch_e}")
                 
                 # Sleep longer between batches to avoid rate limits
-                await asyncio.sleep(2)
+                await asyncio.sleep(PRICE_BATCH_DELAY_SECONDS)
             
             # Sleep longer after a full cycle
             CACHE_STATUS["last_update_completed_at"] = utc_now_iso()
             CACHE_STATUS["last_error"] = None
             CACHE_STATUS["is_updating"] = False
             print(f"Full update cycle completed. Cache size: {len(PRICE_CACHE)}")
-            await asyncio.sleep(60) 
+            await asyncio.sleep(PRICE_REFRESH_INTERVAL_SECONDS) 
             
         except Exception as e:
             CACHE_STATUS["last_error"] = str(e)
@@ -212,52 +197,6 @@ async def update_prices_background():
 async def startup_event():
     # Start the background task
     asyncio.create_task(update_prices_background())
-
-
-class HealthResponse(BaseModel):
-    status: str
-    total_stocks: int
-    cached_stocks: int
-    cached_histories: int
-    history_cache_ttl_seconds: int
-    cache_coverage_percent: float
-    is_updating: bool
-    last_update_started_at: Optional[str]
-    last_update_completed_at: Optional[str]
-    last_error: Optional[str]
-
-class StockSummary(BaseModel):
-    ticker: str
-    name: str
-    last_price: float
-    change_percent: float
-    volume: int
-
-class StockListResponse(BaseModel):
-    data: List[StockSummary]
-    total: int
-    page: int
-    limit: int
-    total_pages: int
-
-class StockHistoryPoint(BaseModel):
-    date: str
-    price: float
-
-class StockDetail(BaseModel):
-    ticker: str
-    name: str
-    last_price: float
-    change_percent: float
-    period: str
-    data_source: str
-    last_updated_at: Optional[str]
-    open: float
-    high: float
-    low: float
-    previous_close: float
-    volume: int
-    history: List[StockHistoryPoint]
 
 
 @app.get("/api/health", response_model=HealthResponse)
@@ -440,16 +379,6 @@ async def get_stock_detail(ticker: str, period: str = "1mo"):
         "volume": int(detail_metrics["volume"] or 0),
         "history": history_points
     }
-
-class WhaleAlert(BaseModel):
-    ticker: str
-    name: str
-    price: float
-    change_percent: float
-    volume: int
-    avg_volume: int
-    volume_ratio: float
-    signal: str # "Accumulation" or "Spike"
 
 @app.get("/api/whale-alerts", response_model=List[WhaleAlert])
 async def get_whale_alerts():

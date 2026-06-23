@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, keepPreviousData } from '@tanstack/react-query';
 import StockTable from './components/StockTable';
-import { fetchStocks } from './api';
+import { fetchMarketSummary, fetchStocks } from './api';
 import { Activity, BarChart3, Download, LayoutDashboard, Radar, Clock, RefreshCw, TrendingDown, TrendingUp, Upload } from 'lucide-react';
 
 const StockChart = lazy(() => import('./components/StockChart'));
@@ -67,6 +67,12 @@ function Dashboard() {
     queryFn: () => fetchStocks({ page, limit: 10, search }),
     refetchInterval: 10000,
     placeholderData: keepPreviousData,
+    enabled: currentView === 'dashboard',
+  });
+  const { data: marketSummaryData } = useQuery({
+    queryKey: ['marketSummary'],
+    queryFn: fetchMarketSummary,
+    refetchInterval: 10000,
     enabled: currentView === 'dashboard',
   });
 
@@ -136,21 +142,22 @@ function Dashboard() {
     showWatchlistOnly ? stocks.filter((stock) => watchlist.includes(stock.ticker)) : stocks
   ), [showWatchlistOnly, stocks, watchlist]);
   const marketSummary = useMemo(() => {
-    const gainers = stocks.filter((stock) => stock.change_percent > 0).length;
-    const losers = stocks.filter((stock) => stock.change_percent < 0).length;
-    const unchanged = stocks.filter((stock) => stock.change_percent === 0).length;
-    const topVolume = stocks.reduce((highest, stock) => (
+    const pageGainers = stocks.filter((stock) => stock.change_percent > 0).length;
+    const pageLosers = stocks.filter((stock) => stock.change_percent < 0).length;
+    const pageUnchanged = stocks.filter((stock) => stock.change_percent === 0).length;
+    const pageTopVolume = stocks.reduce((highest, stock) => (
       (stock.volume || 0) > (highest.volume || 0) ? stock : highest
     ), { ticker: '-', volume: 0 });
 
     return {
-      loaded: stocks.length,
-      gainers,
-      losers,
-      unchanged,
-      topVolume,
+      loaded: marketSummaryData?.total_cached ?? stocks.length,
+      gainers: marketSummaryData?.gainers ?? pageGainers,
+      losers: marketSummaryData?.losers ?? pageLosers,
+      unchanged: marketSummaryData?.unchanged ?? pageUnchanged,
+      topVolume: marketSummaryData?.top_volume?.[0] ?? pageTopVolume,
+      isMarketWide: Boolean(marketSummaryData),
     };
-  }, [stocks]);
+  }, [marketSummaryData, stocks]);
 
   const openTickerFromAlert = (ticker) => {
     setSelectedTicker(ticker);
@@ -258,7 +265,7 @@ function Dashboard() {
             </header>
 
             <section className="max-w-7xl mx-auto mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <SummaryCard label="Loaded" value={marketSummary.loaded} helper="Stocks on this page" icon={Activity} tone="blue" />
+              <SummaryCard label="Loaded" value={marketSummary.loaded} helper={marketSummary.isMarketWide ? 'Cached market-wide' : 'Stocks on this page'} icon={Activity} tone="blue" />
               <SummaryCard label="Gainers" value={marketSummary.gainers} helper={`${marketSummary.unchanged} unchanged`} icon={TrendingUp} tone="green" />
               <SummaryCard label="Losers" value={marketSummary.losers} helper="Negative movers" icon={TrendingDown} tone="red" />
               <SummaryCard label="Top Volume" value={marketSummary.topVolume.ticker} helper={formatCompact(marketSummary.topVolume.volume)} icon={BarChart3} tone="yellow" />

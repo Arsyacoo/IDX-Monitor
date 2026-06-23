@@ -59,3 +59,13 @@ class WhaleAlert(BaseModel):
     avg_volume: int
     volume_ratio: float
     signal: str
+
+
+class MarketSummaryResponse(BaseModel):
+    total_cached: int
+    gainers: int
+    losers: int
+    unchanged: int
+    top_gainers: List[StockSummary]
+    top_losers: List[StockSummary]
+    top_volume: List[StockSummary]

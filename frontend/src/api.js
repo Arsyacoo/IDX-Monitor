@@ -20,3 +20,8 @@ export const fetchWhaleAlerts = async () => {
     const response = await api.get('/whale-alerts');
     return response.data;
 };
+
+export const fetchMarketSummary = async () => {
+    const response = await api.get('/market-summary');
+    return response.data;
+};

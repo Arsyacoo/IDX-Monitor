@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from config import parse_cors_origins
 from main import (
     app,
     build_stock_summary,
@@ -89,3 +90,36 @@ def test_stock_detail_can_return_history_cache_without_external_fetch():
     assert payload['history'] == [{'date': '2026-01-01', 'price': 1000.0}]
 
     HISTORY_CACHE.pop(cache_key, None)
+
+
+def test_market_summary_endpoint_returns_lists():
+    PRICE_CACHE['AAA.JK'] = {
+        'last_price': 100.0,
+        'change_percent': 5.0,
+        'volume': 1000,
+    }
+    PRICE_CACHE['BBB.JK'] = {
+        'last_price': 90.0,
+        'change_percent': -1.0,
+        'volume': 500,
+    }
+
+    response = client.get('/api/market-summary')
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert 'total_cached' in payload
+    assert 'top_gainers' in payload
+    assert 'top_losers' in payload
+    assert 'top_volume' in payload
+
+    PRICE_CACHE.pop('AAA.JK', None)
+    PRICE_CACHE.pop('BBB.JK', None)
+
+
+def test_parse_cors_origins_supports_wildcard_and_lists():
+    assert parse_cors_origins('*') == ['*']
+    assert parse_cors_origins('http://localhost:5173, https://example.com') == [
+        'http://localhost:5173',
+        'https://example.com',
+    ]

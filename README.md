@@ -1,4 +1,4 @@
-﻿# 🇮🇩 IDX Monitor
+# 🇮🇩 IDX Monitor
 
 **IDX Monitor** adalah dashboard *real-time* yang elegan dan canggih untuk memantau pasar saham Indonesia (Bursa Efek Indonesia / IDX). Dibangun dengan teknologi web modern, aplikasi ini memberikan wawasan mendalam tentang pergerakan harga saham dan aktivitas pasar yang tidak biasa ("Whale Activities") dalam antarmuka yang responsif dan memukau.
 

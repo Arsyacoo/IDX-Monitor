@@ -1,8 +1,8 @@
-import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, keepPreviousData } from '@tanstack/react-query';
 import StockTable from './components/StockTable';
 import { fetchStocks } from './api';
-import { Activity, BarChart3, LayoutDashboard, Radar, Clock, RefreshCw, TrendingDown, TrendingUp } from 'lucide-react';
+import { Activity, BarChart3, Download, LayoutDashboard, Radar, Clock, RefreshCw, TrendingDown, TrendingUp, Upload } from 'lucide-react';
 
 const StockChart = lazy(() => import('./components/StockChart'));
 const WhaleAlerts = lazy(() => import('./components/WhaleAlerts'));
@@ -53,6 +53,7 @@ function Dashboard() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
+  const importInputRef = useRef(null);
   const [watchlist, setWatchlist] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(WATCHLIST_STORAGE_KEY)) || [];
@@ -84,6 +85,48 @@ function Dashboard() {
   const clearWatchlist = () => {
     setWatchlist([]);
     setShowWatchlistOnly(false);
+  };
+
+  const exportWatchlist = () => {
+    const payload = {
+      app: 'IDX Monitor',
+      exported_at: new Date().toISOString(),
+      watchlist,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'idx-monitor-watchlist.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importWatchlist = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        const importedWatchlist = Array.isArray(parsed) ? parsed : parsed.watchlist;
+        if (!Array.isArray(importedWatchlist)) return;
+
+        const normalizedWatchlist = [...new Set(
+          importedWatchlist
+            .map((ticker) => String(ticker).trim().toUpperCase())
+            .filter(Boolean)
+        )];
+        setWatchlist(normalizedWatchlist);
+        setShowWatchlistOnly(normalizedWatchlist.length > 0);
+      } catch {
+        // Ignore invalid JSON imports.
+      } finally {
+        event.target.value = '';
+      }
+    };
+    reader.readAsText(file);
   };
 
   const stocks = useMemo(() => stockData?.data || [], [stockData]);
@@ -191,10 +234,25 @@ function Dashboard() {
                 >
                   {showWatchlistOnly ? 'Showing Watchlist' : `${watchlist.length} watchlist items`}
                 </button>
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="hidden"
+                  onChange={importWatchlist}
+                />
+                <button type="button" onClick={() => importInputRef.current?.click()} className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-slate-300 hover:text-white">
+                  <Upload size={12} /> Import
+                </button>
                 {watchlist.length > 0 && (
-                  <button type="button" onClick={clearWatchlist} className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-slate-300 hover:text-white">
-                    Clear watchlist
-                  </button>
+                  <>
+                    <button type="button" onClick={exportWatchlist} className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-slate-300 hover:text-white">
+                      <Download size={12} /> Export
+                    </button>
+                    <button type="button" onClick={clearWatchlist} className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-slate-300 hover:text-white">
+                      Clear watchlist
+                    </button>
+                  </>
                 )}
               </div>
             </header>

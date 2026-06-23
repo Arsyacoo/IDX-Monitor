@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Loader2, Star } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Loader2, Star, X } from 'lucide-react';
 
 const formatPrice = (value) => new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -66,6 +66,17 @@ const StockTable = ({
         });
     }, [stocks, filterBy, sortBy, watchlist]);
 
+    const handleSearchKeyDown = (event) => {
+        if (event.key === 'Escape') {
+            setLocalSearch('');
+            setSearch('');
+            setPage(1);
+        }
+        if (event.key === 'Enter' && visibleStocks.length > 0) {
+            onSelectStock(visibleStocks[0].ticker);
+        }
+    };
+
     useEffect(() => {
         if (filterBy === 'top-volume') {
             setSortBy('volume-desc');
@@ -94,13 +105,33 @@ const StockTable = ({
                     <input
                         type="text"
                         placeholder="Search Ticker (e.g., ADRO)..."
-                        className="w-full bg-slate-700 text-white pl-10 pr-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-idx-accent transition-all"
+                        className="w-full bg-slate-700 text-white pl-10 pr-10 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-idx-accent transition-all"
                         value={localSearch}
                         onChange={(event) => setLocalSearch(event.target.value)}
+                        onKeyDown={handleSearchKeyDown}
                     />
+                    {localSearch && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setLocalSearch('');
+                                setSearch('');
+                                setPage(1);
+                            }}
+                            className="absolute right-3 top-2.5 text-slate-400 hover:text-white"
+                            aria-label="Clear search"
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
+                    )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center justify-between text-[11px] text-slate-500">
+                    <span>Enter selects first result</span>
+                    <span>Esc clears search</span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <select
                         value={filterBy}
                         onChange={(event) => setFilterBy(event.target.value)}
@@ -126,8 +157,8 @@ const StockTable = ({
                 </div>
             </div>
 
-            <div className="overflow-y-auto flex-1">
-                <table className="w-full text-left">
+            <div className="overflow-auto flex-1">
+                <table className="w-full min-w-[520px] text-left">
                     <thead className="bg-slate-700 sticky top-0 z-10">
                         <tr>
                             <th className="p-4 font-semibold text-sm text-gray-300">Ticker</th>

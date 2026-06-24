@@ -100,6 +100,7 @@ async def update_prices_background():
     Background task to continuously update stock prices in batches.
     This avoids blocking the search endpoint with slow API calls.
     """
+    await asyncio.sleep(1)
     print("Background price update task started.")
     batch_size = PRICE_BATCH_SIZE
     while True:

@@ -28,14 +28,20 @@ const StockTable = ({
     watchlist,
     onToggleWatchlist,
     showWatchlistOnly = false,
+    defaultSort = 'ticker',
+    compactMode = false,
 }) => {
     const [localSearch, setLocalSearch] = useState(search);
-    const [sortBy, setSortBy] = useState('ticker');
+    const [sortBy, setSortBy] = useState(defaultSort);
     const [filterBy, setFilterBy] = useState('all');
 
     useEffect(() => {
         setLocalSearch(search);
     }, [search]);
+
+    useEffect(() => {
+        setSortBy(defaultSort);
+    }, [defaultSort]);
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -90,8 +96,8 @@ const StockTable = ({
     }, [filterBy]);
 
     return (
-        <div className="bg-idx-card rounded-xl shadow-lg border border-slate-700 overflow-hidden flex flex-col h-full">
-            <div className="p-4 border-b border-slate-700 space-y-3">
+        <div className={`bg-idx-card rounded-xl shadow-lg border border-slate-700 overflow-hidden flex flex-col h-full ${compactMode ? 'text-sm' : ''}`}>
+            <div className={`${compactMode ? 'p-3' : 'p-4'} border-b border-slate-700 space-y-3`}>
                 <div className="flex items-center justify-between gap-3">
                     <h2 className="text-xl font-bold text-white flex items-center gap-2">
                         IDX Market Data

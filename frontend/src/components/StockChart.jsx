@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchStockHistory } from '../api';
 import {
@@ -63,8 +63,12 @@ const formatUpdatedAt = (value) => {
     return new Date(value).toLocaleTimeString('id-ID');
 };
 
-const StockChart = ({ ticker }) => {
-    const [period, setPeriod] = useState('1mo');
+const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false }) => {
+    const [period, setPeriod] = useState(defaultPeriod);
+
+    useEffect(() => {
+        setPeriod(defaultPeriod);
+    }, [defaultPeriod]);
     const { data: stockDetail, isLoading, isFetching, error } = useQuery({
         queryKey: ['stock', ticker, period],
         queryFn: () => fetchStockHistory(ticker, period),
@@ -108,7 +112,7 @@ const StockChart = ({ ticker }) => {
     const periodChange = firstHistoryPrice ? ((stockDetail.last_price - firstHistoryPrice) / firstHistoryPrice) * 100 : 0;
 
     return (
-        <div className="bg-idx-card rounded-xl shadow-lg border border-slate-700 p-6 h-full flex flex-col">
+        <div className={`bg-idx-card rounded-xl shadow-lg border border-slate-700 ${compactMode ? 'p-4' : 'p-6'} h-full flex flex-col`}>
             <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:justify-between xl:items-end">
                 <div>
                     <div className="flex items-center gap-3 mb-1">

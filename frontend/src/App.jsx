@@ -2,13 +2,21 @@ import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'rea
 import { QueryClient, QueryClientProvider, useQuery, keepPreviousData } from '@tanstack/react-query';
 import StockTable from './components/StockTable';
 import { fetchMarketSummary, fetchStocks } from './api';
-import { Activity, BarChart3, Download, LayoutDashboard, Radar, Clock, RefreshCw, TrendingDown, TrendingUp, Upload, X } from 'lucide-react';
+import { Activity, BarChart3, Download, LayoutDashboard, Radar, Clock, RefreshCw, Settings, TrendingDown, TrendingUp, Upload, X } from 'lucide-react';
 
 const StockChart = lazy(() => import('./components/StockChart'));
 const WhaleAlerts = lazy(() => import('./components/WhaleAlerts'));
 
 const queryClient = new QueryClient();
 const WATCHLIST_STORAGE_KEY = 'idx-monitor-watchlist';
+const SETTINGS_STORAGE_KEY = 'idx-monitor-settings';
+const DEFAULT_SETTINGS = {
+  autoRefresh: true,
+  refreshInterval: 10000,
+  defaultChartPeriod: '1mo',
+  defaultTableSort: 'ticker',
+  compactMode: false,
+};
 
 const PanelFallback = ({ label }) => (
   <div className="bg-idx-card rounded-xl border border-slate-700 h-full flex items-center justify-center text-slate-400">
@@ -39,6 +47,97 @@ const ToastStack = ({ toasts, onDismiss }) => (
   </div>
 );
 
+const SettingsPanel = ({ settings, onChange, onClose }) => (
+  <div className="fixed inset-0 z-[70] bg-slate-950/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Dashboard settings">
+    <div className="ml-auto max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-white">Dashboard Settings</h2>
+          <p className="text-sm text-slate-400">Saved locally in this browser.</p>
+        </div>
+        <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white" aria-label="Close settings">
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        <label className="flex items-center justify-between gap-4 rounded-xl border border-slate-700 bg-slate-800/70 p-3 text-sm text-slate-200">
+          <span>Auto refresh</span>
+          <input type="checkbox" checked={settings.autoRefresh} onChange={(event) => onChange({ autoRefresh: event.target.checked })} />
+        </label>
+
+        <label className="block text-sm text-slate-300">
+          <span className="mb-2 block text-xs uppercase tracking-wide text-slate-500">Refresh Interval</span>
+          <select value={settings.refreshInterval} onChange={(event) => onChange({ refreshInterval: Number(event.target.value) })} className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-200">
+            <option value={5000}>5 seconds</option>
+            <option value={10000}>10 seconds</option>
+            <option value={30000}>30 seconds</option>
+            <option value={60000}>60 seconds</option>
+          </select>
+        </label>
+
+        <label className="block text-sm text-slate-300">
+          <span className="mb-2 block text-xs uppercase tracking-wide text-slate-500">Default Chart Period</span>
+          <select value={settings.defaultChartPeriod} onChange={(event) => onChange({ defaultChartPeriod: event.target.value })} className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-200">
+            <option value="5d">5D</option>
+            <option value="1mo">1M</option>
+            <option value="3mo">3M</option>
+            <option value="6mo">6M</option>
+            <option value="1y">1Y</option>
+          </select>
+        </label>
+
+        <label className="block text-sm text-slate-300">
+          <span className="mb-2 block text-xs uppercase tracking-wide text-slate-500">Default Table Sort</span>
+          <select value={settings.defaultTableSort} onChange={(event) => onChange({ defaultTableSort: event.target.value })} className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-200">
+            <option value="ticker">Ticker A-Z</option>
+            <option value="change-desc">Change tertinggi</option>
+            <option value="change-asc">Change terendah</option>
+            <option value="volume-desc">Volume terbesar</option>
+            <option value="price-desc">Harga tertinggi</option>
+          </select>
+        </label>
+
+        <label className="flex items-center justify-between gap-4 rounded-xl border border-slate-700 bg-slate-800/70 p-3 text-sm text-slate-200">
+          <span>Compact mode</span>
+          <input type="checkbox" checked={settings.compactMode} onChange={(event) => onChange({ compactMode: event.target.checked })} />
+        </label>
+      </div>
+    </div>
+  </div>
+);
+
+const WatchlistBoard = ({ stocks, watchlist, onOpenTicker }) => {
+  if (watchlist.length === 0) return null;
+
+  return (
+    <section className="max-w-7xl mx-auto mb-6 rounded-xl border border-slate-700 bg-idx-card p-4" aria-label="Watchlist board">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h2 className="font-bold text-white">Watchlist Board</h2>
+          <p className="text-xs text-slate-400">Quick access to your saved tickers on the current data page.</p>
+        </div>
+        <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">{watchlist.length} saved</span>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {watchlist.slice(0, 8).map((ticker) => {
+          const stock = stocks.find((item) => item.ticker === ticker);
+          return (
+            <button key={ticker} type="button" onClick={() => onOpenTicker(ticker)} className="rounded-lg border border-slate-700 bg-slate-800/70 p-3 text-left transition-colors hover:border-idx-accent focus:outline-none focus:ring-2 focus:ring-idx-accent">
+              <div className="font-bold text-white">{ticker}</div>
+              <div className="mt-1 truncate text-xs text-slate-400">{stock?.name || 'Open ticker chart'}</div>
+              <div className="mt-3 flex items-center justify-between text-sm">
+                <span className="font-mono text-slate-200">{stock ? formatCompact(stock.last_price) : '-'}</span>
+                <span className={stock?.change_percent >= 0 ? 'text-emerald-400' : 'text-red-400'}>{stock ? `${stock.change_percent}%` : 'Open'}</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
 const SummaryCard = ({ label, value, helper, icon, tone = 'slate' }) => {
   const IconComponent = icon;
   const toneClass = {
@@ -67,6 +166,14 @@ const SummaryCard = ({ label, value, helper, icon, tone = 'slate' }) => {
 
 function Dashboard() {
   const [toasts, setToasts] = useState([]);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState(() => {
+    try {
+      return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY)) };
+    } catch {
+      return DEFAULT_SETTINGS;
+    }
+  });
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedTicker, setSelectedTicker] = useState('BBCA');
   const [page, setPage] = useState(1);
@@ -84,14 +191,14 @@ function Dashboard() {
   const { data: stockData, isLoading, isFetching, error, dataUpdatedAt, refetch } = useQuery({
     queryKey: ['stocks', page, search],
     queryFn: () => fetchStocks({ page, limit: 10, search }),
-    refetchInterval: 10000,
+    refetchInterval: settings.autoRefresh ? settings.refreshInterval : false,
     placeholderData: keepPreviousData,
     enabled: currentView === 'dashboard',
   });
   const { data: marketSummaryData } = useQuery({
     queryKey: ['marketSummary'],
     queryFn: fetchMarketSummary,
-    refetchInterval: 10000,
+    refetchInterval: settings.autoRefresh ? settings.refreshInterval : false,
     enabled: currentView === 'dashboard',
   });
 
@@ -110,6 +217,14 @@ function Dashboard() {
   useEffect(() => {
     localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(watchlist));
   }, [watchlist]);
+
+  useEffect(() => {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  }, [settings]);
+
+  const updateSettings = (nextSettings) => {
+    setSettings((currentSettings) => ({ ...currentSettings, ...nextSettings }));
+  };
 
   useEffect(() => {
     if (error) {
@@ -219,8 +334,9 @@ function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-idx-dark text-idx-text font-sans flex flex-col">
+    <div className={`min-h-screen bg-idx-dark text-idx-text font-sans flex flex-col ${settings.compactMode ? 'text-sm' : ''}`}>
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      {isSettingsOpen && <SettingsPanel settings={settings} onChange={updateSettings} onClose={() => setIsSettingsOpen(false)} />}
       <nav className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-8">
@@ -243,6 +359,16 @@ function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {currentView === 'dashboard' && (
+              <button
+                type="button"
+                onClick={() => setIsSettingsOpen(true)}
+                className="hidden sm:flex text-xs text-slate-300 items-center gap-1.5 bg-slate-800 px-3 py-1 rounded-full border border-slate-700 hover:text-white"
+                aria-label="Open dashboard settings"
+              >
+                <Settings size={13} /> Settings
+              </button>
+            )}
             {currentView === 'dashboard' && (
               <button
                 type="button"
@@ -277,7 +403,7 @@ function Dashboard() {
                 <p className="text-slate-400 text-sm">Real-time prices from Indonesia Stock Exchange</p>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                <span>Auto refresh every 10 seconds</span>
+                <span>{settings.autoRefresh ? `Auto refresh every ${settings.refreshInterval / 1000} seconds` : 'Auto refresh off'}</span>
                 <button
                   type="button"
                   onClick={toggleWatchlistMode}
@@ -308,6 +434,8 @@ function Dashboard() {
               </div>
             </header>
 
+            <WatchlistBoard stocks={stocks} watchlist={watchlist} onOpenTicker={openTickerFromAlert} />
+
             <section className="max-w-7xl mx-auto mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <SummaryCard label="Loaded" value={marketSummary.loaded} helper={marketSummary.isMarketWide ? 'Cached market-wide' : 'Stocks on this page'} icon={Activity} tone="blue" />
               <SummaryCard label="Gainers" value={marketSummary.gainers} helper={`${marketSummary.unchanged} unchanged`} icon={TrendingUp} tone="green" />
@@ -334,6 +462,8 @@ function Dashboard() {
                     search={search}
                     setSearch={setSearch}
                     isLoading={isLoading || isFetching || stockData === undefined}
+                    defaultSort={settings.defaultTableSort}
+                    compactMode={settings.compactMode}
                     watchlist={watchlist}
                     onToggleWatchlist={toggleWatchlist}
                     showWatchlistOnly={showWatchlistOnly}
@@ -343,7 +473,7 @@ function Dashboard() {
 
               <div className="lg:col-span-8 h-full">
                 <Suspense fallback={<PanelFallback label="chart" />}>
-                  <StockChart ticker={selectedTicker} />
+                  <StockChart ticker={selectedTicker} defaultPeriod={settings.defaultChartPeriod} compactMode={settings.compactMode} />
                 </Suspense>
               </div>
             </main>

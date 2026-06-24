@@ -28,6 +28,7 @@ const WhaleAlerts = ({ onOpenTicker }) => {
             .sort((firstAlert, secondAlert) => {
                 if (sortBy === 'change-desc') return secondAlert.change_percent - firstAlert.change_percent;
                 if (sortBy === 'volume-desc') return secondAlert.volume - firstAlert.volume;
+                if (sortBy === 'confidence-desc') return secondAlert.confidence_score - firstAlert.confidence_score;
                 return secondAlert.volume_ratio - firstAlert.volume_ratio;
             });
     }, [alerts, minRatio, signalFilter, sortBy]);
@@ -81,6 +82,7 @@ const WhaleAlerts = ({ onOpenTicker }) => {
                     <label className="text-sm text-slate-300">
                         <span className="mb-2 block text-xs uppercase tracking-wide text-slate-500">Sort</span>
                         <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-200">
+                            <option value="confidence-desc">Confidence</option>
                             <option value="ratio-desc">Volume ratio</option>
                             <option value="change-desc">Price change</option>
                             <option value="volume-desc">Raw volume</option>
@@ -152,12 +154,27 @@ const WhaleAlerts = ({ onOpenTicker }) => {
                                         </div>
                                     </div>
 
-                                    <span className={`inline-flex px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${alert.signal.includes('Whale')
-                                        ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-700/50'
-                                        : 'bg-green-900/30 text-green-400 border border-green-700/50'
-                                        }`}>
-                                        {alert.signal}
-                                    </span>
+                                    <div className="rounded-lg border border-slate-700 bg-slate-800/40 p-3">
+                                        <div className="mb-1 flex justify-between text-sm">
+                                            <span className="text-gray-400">Confidence</span>
+                                            <span className="font-bold text-blue-300">{alert.confidence_score}%</span>
+                                        </div>
+                                        <div className="h-2 overflow-hidden rounded-full bg-slate-700">
+                                            <div className="h-full bg-blue-500" style={{ width: `${Math.min(alert.confidence_score, 100)}%` }}></div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className={`inline-flex px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${alert.signal.includes('Whale')
+                                            ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-700/50'
+                                            : 'bg-green-900/30 text-green-400 border border-green-700/50'
+                                            }`}>
+                                            {alert.signal}
+                                        </span>
+                                        <span className="inline-flex px-2 py-1 rounded text-xs font-bold text-slate-200 border border-slate-600 bg-slate-700/50">
+                                            {alert.action_label}
+                                        </span>
+                                    </div>
                                 </div>
                             </button>
                         ))}

@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'rea
 import { QueryClient, QueryClientProvider, useQuery, keepPreviousData } from '@tanstack/react-query';
 import StockTable from './components/StockTable';
 import { fetchMarketSummary, fetchStocks } from './api';
-import { Activity, BarChart3, Download, LayoutDashboard, Radar, Clock, RefreshCw, TrendingDown, TrendingUp, Upload } from 'lucide-react';
+import { Activity, BarChart3, Download, LayoutDashboard, Radar, Clock, RefreshCw, TrendingDown, TrendingUp, Upload, X } from 'lucide-react';
 
 const StockChart = lazy(() => import('./components/StockChart'));
 const WhaleAlerts = lazy(() => import('./components/WhaleAlerts'));
@@ -20,6 +20,24 @@ const formatCompact = (value) => new Intl.NumberFormat('id-ID', {
   notation: 'compact',
   maximumFractionDigits: 1,
 }).format(value || 0);
+
+const ToastStack = ({ toasts, onDismiss }) => (
+  <div className="fixed right-4 top-20 z-[60] flex w-[min(360px,calc(100vw-2rem))] flex-col gap-3">
+    {toasts.map((toast) => (
+      <div key={toast.id} className={`rounded-xl border p-4 shadow-xl backdrop-blur ${toast.type === 'error' ? 'border-red-700 bg-red-950/90 text-red-100' : 'border-slate-700 bg-slate-900/90 text-slate-100'}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="font-semibold">{toast.title}</div>
+            {toast.message && <div className="mt-1 text-sm text-slate-300">{toast.message}</div>}
+          </div>
+          <button type="button" onClick={() => onDismiss(toast.id)} className="text-slate-400 hover:text-white" aria-label="Dismiss notification">
+            <X size={16} />
+          </button>
+        </div>
+      </div>
+    ))}
+  </div>
+);
 
 const SummaryCard = ({ label, value, helper, icon, tone = 'slate' }) => {
   const IconComponent = icon;
@@ -48,6 +66,7 @@ const SummaryCard = ({ label, value, helper, icon, tone = 'slate' }) => {
 };
 
 function Dashboard() {
+  const [toasts, setToasts] = useState([]);
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedTicker, setSelectedTicker] = useState('BBCA');
   const [page, setPage] = useState(1);
@@ -76,9 +95,27 @@ function Dashboard() {
     enabled: currentView === 'dashboard',
   });
 
+  const addToast = (toast) => {
+    const id = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+    setToasts((currentToasts) => [...currentToasts, { id, type: 'success', ...toast }]);
+    setTimeout(() => {
+      setToasts((currentToasts) => currentToasts.filter((item) => item.id !== id));
+    }, 4200);
+  };
+
+  const dismissToast = (id) => {
+    setToasts((currentToasts) => currentToasts.filter((toast) => toast.id !== id));
+  };
+
   useEffect(() => {
     localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(watchlist));
   }, [watchlist]);
+
+  useEffect(() => {
+    if (error) {
+      addToast({ type: 'error', title: 'Market data unavailable', message: 'Backend may be offline or still warming up.' });
+    }
+  }, [error]);
 
   const toggleWatchlist = (ticker) => {
     setWatchlist((currentWatchlist) => (
@@ -91,6 +128,7 @@ function Dashboard() {
   const clearWatchlist = () => {
     setWatchlist([]);
     setShowWatchlistOnly(false);
+    addToast({ title: 'Watchlist cleared', message: 'All saved tickers were removed.' });
   };
 
   const exportWatchlist = () => {
@@ -106,6 +144,7 @@ function Dashboard() {
     link.download = 'idx-monitor-watchlist.json';
     link.click();
     URL.revokeObjectURL(url);
+    addToast({ title: 'Watchlist exported', message: `${watchlist.length} tickers saved to JSON.` });
   };
 
   const importWatchlist = (event) => {
@@ -126,8 +165,9 @@ function Dashboard() {
         )];
         setWatchlist(normalizedWatchlist);
         setShowWatchlistOnly(normalizedWatchlist.length > 0);
+        addToast({ title: 'Watchlist imported', message: `${normalizedWatchlist.length} tickers loaded.` });
       } catch {
-        // Ignore invalid JSON imports.
+        addToast({ type: 'error', title: 'Import failed', message: 'Please select a valid watchlist JSON file.' });
       } finally {
         event.target.value = '';
       }
@@ -180,6 +220,7 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-idx-dark text-idx-text font-sans flex flex-col">
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
       <nav className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-8">
@@ -205,7 +246,10 @@ function Dashboard() {
             {currentView === 'dashboard' && (
               <button
                 type="button"
-                onClick={() => refetch()}
+                onClick={() => {
+                  refetch();
+                  addToast({ title: 'Refreshing market data', message: 'Fetching the latest cached prices.' });
+                }}
                 className="hidden sm:flex text-xs text-slate-300 items-center gap-1.5 bg-slate-800 px-3 py-1 rounded-full border border-slate-700 hover:text-white"
               >
                 <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} /> Refresh

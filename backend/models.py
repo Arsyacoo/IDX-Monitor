@@ -59,6 +59,9 @@ class WhaleAlert(BaseModel):
     avg_volume: int
     volume_ratio: float
     signal: str
+    category: str
+    confidence_score: int
+    action_label: str
 
 
 class MarketSummaryResponse(BaseModel):

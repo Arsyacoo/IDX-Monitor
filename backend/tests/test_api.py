@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from config import parse_cors_origins
+from services.whale_detector import build_whale_alert, classify_whale_signal
 from main import (
     app,
     build_stock_summary,
@@ -123,3 +124,25 @@ def test_parse_cors_origins_supports_wildcard_and_lists():
         'http://localhost:5173',
         'https://example.com',
     ]
+
+
+def test_whale_signal_classification_and_alert_shape():
+    category, signal, confidence, action = classify_whale_signal(2.5, 3.0)
+
+    assert category == 'Major Accumulation'
+    assert signal == 'Major Whale Accumulation'
+    assert confidence > 0
+    assert action == 'Open in Chart'
+
+    alert = build_whale_alert(
+        {'ticker': 'TEST', 'name': 'Test Equity'},
+        last_price=120.0,
+        prev_close=100.0,
+        current_vol=2500,
+        avg_vol=1000,
+    )
+
+    assert alert['ticker'] == 'TEST'
+    assert alert['category'] == 'Major Accumulation'
+    assert alert['confidence_score'] > 0
+    assert alert['action_label'] == 'Open in Chart'

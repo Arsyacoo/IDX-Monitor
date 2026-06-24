@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchStockHistory } from '../api';
 import {
-    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine
 } from 'recharts';
 
 const PERIOD_OPTIONS = [
@@ -23,6 +23,24 @@ const formatVolume = (value) => new Intl.NumberFormat('id-ID', {
     notation: 'compact',
     maximumFractionDigits: 1,
 }).format(value || 0);
+
+const ChartTooltip = ({ active, payload, label, firstPrice }) => {
+    if (!active || !payload?.length) return null;
+
+    const price = payload[0].value;
+    const changeFromStart = firstPrice ? ((price - firstPrice) / firstPrice) * 100 : 0;
+    const isPositive = changeFromStart >= 0;
+
+    return (
+        <div className="rounded-lg border border-slate-700 bg-slate-900/95 p-3 shadow-xl">
+            <div className="text-xs text-slate-400">{label}</div>
+            <div className="mt-1 font-mono text-sm font-semibold text-white">{formatPrice(price)}</div>
+            <div className={`mt-1 text-xs font-semibold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+                {isPositive ? '+' : ''}{changeFromStart.toFixed(2)}% vs start
+            </div>
+        </div>
+    );
+};
 
 const MetricCard = ({ label, value }) => (
     <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-3">
@@ -84,6 +102,10 @@ const StockChart = ({ ticker }) => {
     const isPositive = stockDetail.change_percent >= 0;
     const color = isPositive ? '#10b981' : '#ef4444';
     const hasHistory = stockDetail.history && stockDetail.history.length > 0;
+    const firstHistoryPrice = hasHistory ? stockDetail.history[0].price : 0;
+    const periodHigh = hasHistory ? Math.max(...stockDetail.history.map((point) => point.price)) : 0;
+    const periodLow = hasHistory ? Math.min(...stockDetail.history.map((point) => point.price)) : 0;
+    const periodChange = firstHistoryPrice ? ((stockDetail.last_price - firstHistoryPrice) / firstHistoryPrice) * 100 : 0;
 
     return (
         <div className="bg-idx-card rounded-xl shadow-lg border border-slate-700 p-6 h-full flex flex-col">
@@ -96,6 +118,11 @@ const StockChart = ({ ticker }) => {
                         </span>
                     </div>
                     <h2 className="text-gray-400 text-sm">{stockDetail.name}</h2>
+                    {hasHistory && (
+                        <p className={`mt-2 text-sm font-semibold ${periodChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {periodChange >= 0 ? '+' : ''}{periodChange.toFixed(2)}% over selected period
+                        </p>
+                    )}
                     <div className="mt-3 flex gap-1 bg-slate-800 p-1 rounded-lg w-fit">
                         {PERIOD_OPTIONS.map((option) => (
                             <button
@@ -167,12 +194,9 @@ const StockChart = ({ ticker }) => {
                                 tickFormatter={(value) => `Rp${value / 1000}k`}
                                 width={60}
                             />
-                            <Tooltip
-                                contentStyle={{ backgroundColor: '#1e293b', borderColor: '#475569', color: '#f8fafc' }}
-                                itemStyle={{ color: '#f8fafc' }}
-                                formatter={(value) => [formatPrice(value), 'Price']}
-                                labelStyle={{ color: '#94a3b8' }}
-                            />
+                            <Tooltip content={<ChartTooltip firstPrice={firstHistoryPrice} />} />
+                            <ReferenceLine y={periodHigh} stroke="#22c55e" strokeDasharray="4 4" ifOverflow="extendDomain" />
+                            <ReferenceLine y={periodLow} stroke="#ef4444" strokeDasharray="4 4" ifOverflow="extendDomain" />
                             <Area
                                 type="monotone"
                                 dataKey="price"

@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, keepPreviousData } from '@tanstack/react-query';
 import StockTable from './components/StockTable';
-import { fetchMarketSummary, fetchStocks } from './api';
+import { fetchHealth, fetchMarketSummary, fetchStocks } from './api';
 import { Activity, BarChart3, Download, LayoutDashboard, Radar, Clock, RefreshCw, Settings, TrendingDown, TrendingUp, Upload, X } from 'lucide-react';
 
 const StockChart = lazy(() => import('./components/StockChart'));
@@ -28,6 +28,52 @@ const formatCompact = (value) => new Intl.NumberFormat('id-ID', {
   notation: 'compact',
   maximumFractionDigits: 1,
 }).format(value || 0);
+
+const formatHealthTime = (value) => {
+  if (!value) return 'Not yet';
+  return new Date(value).toLocaleTimeString('id-ID');
+};
+
+const HealthBanner = ({ health, isLoading, isError }) => {
+  const isDegraded = isError || health?.status === 'degraded';
+  const coverage = health?.cache_coverage_percent ?? 0;
+  const unavailableCount = health?.unavailable_tickers_count ?? 0;
+  const workerLabel = health?.worker_running ? 'Worker active' : 'Worker warming up';
+
+  return (
+    <section className={`max-w-7xl mx-auto mb-6 rounded-2xl border p-4 shadow-lg ${isDegraded ? 'border-yellow-700/60 bg-yellow-950/20' : 'border-slate-700 bg-slate-900/70'}`}>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-semibold text-white">
+            <span className={`h-2.5 w-2.5 rounded-full ${isDegraded ? 'bg-yellow-400' : 'bg-green-400'} ${isLoading ? 'animate-pulse' : ''}`}></span>
+            Backend Data Health
+          </div>
+          <p className="mt-1 text-sm text-slate-400">
+            {isError ? 'Unable to read health endpoint. Check backend connection.' : `${workerLabel}. Last completed: ${formatHealthTime(health?.last_update_completed_at)}.`}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4 lg:min-w-[560px]">
+          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
+            <div className="text-slate-500">Cache Coverage</div>
+            <div className="mt-1 text-lg font-bold text-white">{coverage}%</div>
+          </div>
+          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
+            <div className="text-slate-500">Cached Stocks</div>
+            <div className="mt-1 text-lg font-bold text-white">{health?.cached_stocks ?? 0}</div>
+          </div>
+          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
+            <div className="text-slate-500">Unavailable</div>
+            <div className={`mt-1 text-lg font-bold ${unavailableCount ? 'text-yellow-300' : 'text-white'}`}>{unavailableCount}</div>
+          </div>
+          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
+            <div className="text-slate-500">Current Batch</div>
+            <div className="mt-1 text-lg font-bold text-white">{health?.current_batch_size ?? 0}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
 
 const ToastStack = ({ toasts, onDismiss }) => (
   <div className="fixed right-4 top-20 z-[60] flex w-[min(360px,calc(100vw-2rem))] flex-col gap-3">
@@ -198,6 +244,12 @@ function Dashboard() {
   const { data: marketSummaryData } = useQuery({
     queryKey: ['marketSummary'],
     queryFn: fetchMarketSummary,
+    refetchInterval: settings.autoRefresh ? settings.refreshInterval : false,
+    enabled: currentView === 'dashboard',
+  });
+  const { data: healthData, isLoading: isHealthLoading, isError: isHealthError } = useQuery({
+    queryKey: ['health'],
+    queryFn: fetchHealth,
     refetchInterval: settings.autoRefresh ? settings.refreshInterval : false,
     enabled: currentView === 'dashboard',
   });
@@ -433,6 +485,8 @@ function Dashboard() {
                 )}
               </div>
             </header>
+
+            <HealthBanner health={healthData} isLoading={isHealthLoading} isError={isHealthError} />
 
             <WatchlistBoard stocks={stocks} watchlist={watchlist} onOpenTicker={openTickerFromAlert} />
 

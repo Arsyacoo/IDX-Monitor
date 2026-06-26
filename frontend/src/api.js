@@ -25,3 +25,8 @@ export const fetchMarketSummary = async () => {
     const response = await api.get('/market-summary');
     return response.data;
 };
+
+export const fetchHealth = async () => {
+    const response = await api.get('/health');
+    return response.data;
+};

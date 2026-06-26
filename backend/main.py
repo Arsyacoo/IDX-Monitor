@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,7 +11,20 @@ from routes.stocks import router as stocks_router
 from routes.whales import router as whales_router
 from services.market_data import build_stock_summary, update_prices_background
 
-app = FastAPI(title="IDX Stock Dashboard API")
+@asynccontextmanager
+async def lifespan(app):
+    price_update_task = asyncio.create_task(update_prices_background())
+    try:
+        yield
+    finally:
+        price_update_task.cancel()
+        try:
+            await price_update_task
+        except asyncio.CancelledError:
+            pass
+
+
+app = FastAPI(title="IDX Stock Dashboard API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,8 +37,3 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(stocks_router)
 app.include_router(whales_router)
-
-
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(update_prices_background())

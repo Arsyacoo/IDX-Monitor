@@ -1,6 +1,9 @@
 from fastapi.testclient import TestClient
 
+from cache import clear_unavailable_ticker, is_ticker_unavailable, mark_ticker_unavailable
 from config import parse_cors_origins
+from services.providers.retry import retry_with_backoff
+from services.providers.yahoo_chart import fetch_yahoo_chart
 from services.whale_detector import build_whale_alert, classify_whale_signal
 from main import (
     app,
@@ -24,6 +27,84 @@ def test_health_endpoint_returns_cache_status():
     assert 'cache_coverage_percent' in payload
     assert 'cached_histories' in payload
     assert payload['history_cache_ttl_seconds'] > 0
+    assert 'worker_running' in payload
+    assert 'current_batch_start' in payload
+    assert 'current_batch_end' in payload
+    assert 'current_batch_size' in payload
+    assert 'current_ticker' in payload
+    assert 'last_successful_ticker' in payload
+    assert 'failed_tickers_count' in payload
+    assert 'unavailable_tickers_count' in payload
+
+
+def test_unavailable_ticker_helpers_track_and_clear_failures():
+    ticker = 'FAIL.JK'
+    clear_unavailable_ticker(ticker)
+
+    mark_ticker_unavailable(ticker, 'temporary provider failure')
+
+    assert is_ticker_unavailable(ticker) is True
+
+    clear_unavailable_ticker(ticker)
+
+    assert is_ticker_unavailable(ticker) is False
+
+
+def test_retry_with_backoff_recovers_after_transient_failure(monkeypatch):
+    attempts = {'count': 0}
+    monkeypatch.setattr('services.providers.retry.time.sleep', lambda _: None)
+
+    def flaky_operation():
+        attempts['count'] += 1
+        if attempts['count'] == 1:
+            raise RuntimeError('temporary')
+        return 'ok'
+
+    assert retry_with_backoff(flaky_operation, retries=1, base_delay=0) == 'ok'
+    assert attempts['count'] == 2
+
+
+def test_yahoo_chart_provider_parses_chart_response(monkeypatch):
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                'chart': {
+                    'result': [{
+                        'meta': {
+                            'regularMarketPrice': 110.0,
+                            'chartPreviousClose': 100.0,
+                            'regularMarketVolume': 12345,
+                            'regularMarketOpen': 101.0,
+                            'regularMarketDayHigh': 111.0,
+                            'regularMarketDayLow': 99.0,
+                        },
+                        'timestamp': [1767225600, 1767312000],
+                        'indicators': {
+                            'quote': [{
+                                'close': [100.0, 110.0],
+                                'volume': [1000, 12345],
+                            }],
+                        },
+                    }],
+                },
+            }
+
+    monkeypatch.setattr('services.providers.yahoo_chart.requests.get', lambda *args, **kwargs: FakeResponse())
+
+    payload = fetch_yahoo_chart('TEST.JK', '5d')
+
+    assert payload['current'] == 110.0
+    assert payload['change_percent'] == 10.0
+    assert payload['volume'] == 12345
+    assert payload['open'] == 101.0
+    assert payload['high'] == 111.0
+    assert payload['low'] == 99.0
+    assert payload['previous_close'] == 100.0
+    assert payload['data_source'] == 'yahoo_chart'
+    assert len(payload['history']) == 2
 
 
 def test_stock_summary_includes_volume_from_cache():

@@ -10,6 +10,14 @@ class HealthResponse(BaseModel):
     history_cache_ttl_seconds: int
     cache_coverage_percent: float
     is_updating: bool
+    worker_running: bool
+    current_batch_start: Optional[int]
+    current_batch_end: Optional[int]
+    current_batch_size: int
+    current_ticker: Optional[str]
+    last_successful_ticker: Optional[str]
+    failed_tickers_count: int
+    unavailable_tickers_count: int
     last_update_started_at: Optional[str]
     last_update_completed_at: Optional[str]
     last_error: Optional[str]

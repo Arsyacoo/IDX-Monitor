@@ -2,22 +2,30 @@ import asyncio
 import json
 import math
 import os
-from datetime import datetime, timezone
 from typing import Optional
 
-import requests
-import yfinance as yf
 from fastapi import HTTPException
 
-from cache import CACHE_STATUS, HISTORY_CACHE, PRICE_CACHE, is_history_cache_fresh, utc_now_iso
+from cache import (
+    CACHE_STATUS,
+    HISTORY_CACHE,
+    PRICE_CACHE,
+    UNAVAILABLE_TICKERS,
+    clear_unavailable_ticker,
+    is_history_cache_fresh,
+    is_ticker_unavailable,
+    mark_ticker_unavailable,
+    utc_now_iso,
+)
 from config import (
     HISTORY_CACHE_TTL_SECONDS,
     PRICE_BATCH_DELAY_SECONDS,
     PRICE_BATCH_SIZE,
     PRICE_REFRESH_INTERVAL_SECONDS,
     VALID_HISTORY_PERIODS,
-    YAHOO_CHART_URL,
 )
+from services.providers.yahoo_chart import fetch_yahoo_chart
+from services.providers.yfinance_provider import fetch_yfinance_batch, fetch_yfinance_history
 
 STOCKS_DB = []
 try:
@@ -32,51 +40,6 @@ except Exception as e:
         {"ticker": "BBRI", "name": "Bank Rakyat Indonesia (Persero) Tbk"},
     ]
 
-def fetch_yahoo_chart(ticker_jk, period):
-    response = requests.get(
-        YAHOO_CHART_URL.format(ticker=ticker_jk),
-        params={"range": period, "interval": "1d"},
-        headers={"User-Agent": "Mozilla/5.0"},
-        timeout=10,
-    )
-    response.raise_for_status()
-    payload = response.json()
-    result = payload.get("chart", {}).get("result") or []
-    if not result:
-        return None
-
-    chart = result[0]
-    meta = chart.get("meta", {})
-    timestamps = chart.get("timestamp") or []
-    quote = (chart.get("indicators", {}).get("quote") or [{}])[0]
-    closes = quote.get("close") or []
-    volumes = quote.get("volume") or []
-
-    history = []
-    for timestamp, close in zip(timestamps, closes):
-        if close is None:
-            continue
-        history.append({
-            "date": datetime.fromtimestamp(timestamp, timezone.utc).astimezone().strftime("%Y-%m-%d"),
-            "price": close,
-        })
-
-    current = meta.get("regularMarketPrice") or (history[-1]["price"] if history else 0.0)
-    previous = meta.get("chartPreviousClose") or meta.get("previousClose") or current
-    change_pct = ((current - previous) / previous * 100) if previous else 0.0
-
-    return {
-        "current": current or 0.0,
-        "change_percent": change_pct,
-        "volume": meta.get("regularMarketVolume") or (volumes[-1] if volumes else 0),
-        "open": meta.get("regularMarketOpen") or 0.0,
-        "high": meta.get("regularMarketDayHigh") or 0.0,
-        "low": meta.get("regularMarketDayLow") or 0.0,
-        "previous_close": previous or 0.0,
-        "history": history,
-        "data_source": "yahoo_chart",
-        "last_updated_at": utc_now_iso(),
-    }
 
 def build_stock_summary(stock):
     ticker_key = f"{stock['ticker']}.JK"
@@ -95,85 +58,101 @@ def build_stock_summary(stock):
     }
 
 
+def update_price_cache(ticker_key, current, change_pct, volume=0, previous_close=0.0):
+    PRICE_CACHE[ticker_key] = {
+        "last_price": current or 0.0,
+        "change_percent": change_pct or 0.0,
+        "volume": int(volume or 0),
+        "prev_close": previous_close or 0.0,
+    }
+    CACHE_STATUS["last_successful_ticker"] = ticker_key
+    clear_unavailable_ticker(ticker_key)
+
+
 async def update_prices_background():
-    """
-    Background task to continuously update stock prices in batches.
-    This avoids blocking the search endpoint with slow API calls.
-    """
     await asyncio.sleep(1)
     print("Background price update task started.")
     batch_size = PRICE_BATCH_SIZE
+    CACHE_STATUS["worker_running"] = True
+
     while True:
         try:
             CACHE_STATUS["is_updating"] = True
             CACHE_STATUS["last_update_started_at"] = utc_now_iso()
             total_stocks = len(STOCKS_DB)
-            for i in range(0, total_stocks, batch_size):
-                batch = STOCKS_DB[i:i+batch_size]
-                tickers_with_suffix = [f"{s['ticker']}.JK" for s in batch]
+
+            for start_index in range(0, total_stocks, batch_size):
+                batch = STOCKS_DB[start_index:start_index + batch_size]
+                tickers_with_suffix = [
+                    f"{stock['ticker']}.JK"
+                    for stock in batch
+                    if not is_ticker_unavailable(f"{stock['ticker']}.JK")
+                ]
+                CACHE_STATUS["current_batch_start"] = start_index
+                CACHE_STATUS["current_batch_end"] = min(start_index + batch_size, total_stocks)
+                CACHE_STATUS["current_batch_size"] = len(tickers_with_suffix)
+
+                if not tickers_with_suffix:
+                    await asyncio.sleep(PRICE_BATCH_DELAY_SECONDS)
+                    continue
+
                 tickers_str = " ".join(tickers_with_suffix)
-                
+
                 try:
-                    # Fetch batch data
-                    data = yf.Tickers(tickers_str)
-                    
-                    # Process each ticker in the batch
+                    data = fetch_yfinance_batch(tickers_str)
                     for ticker_code in tickers_with_suffix:
+                        CACHE_STATUS["current_ticker"] = ticker_code
                         try:
-                            # Note: yfinance access patterns can be tricky.
-                            # accessing .tickers[ticker_code] is usually safe if fetched in batch
-                            if ticker_code in data.tickers:
-                                t_obj = data.tickers[ticker_code]
-                                
-                                # Prefer fast_info for speed
-                                current = 0.0
-                                previous = 0.0
-                                volume = 0
-                                
-                                try:
-                                    current = t_obj.fast_info.last_price
-                                    previous = t_obj.fast_info.previous_close
-                                    volume = t_obj.fast_info.last_volume
-                                except:
-                                    # Fallback
-                                    info = t_obj.info
-                                    current = info.get('currentPrice') or info.get('regularMarketPrice') or 0.0
-                                    previous = info.get('previousClose') or current
-                                    volume = info.get('volume') or 0
-                                
-                                change_pct = 0.0
-                                if previous and previous != 0:
-                                    change_pct = ((current - previous) / previous) * 100
-                                
-                                # Update Cache
-                                PRICE_CACHE[ticker_code] = {
-                                    "last_price": current,
-                                    "change_percent": change_pct,
-                                    "volume": volume,
-                                    "prev_close": previous
-                                }
-                        except Exception as inner_e:
-                            # Skip individual ticker errors
+                            if ticker_code not in data.tickers:
+                                mark_ticker_unavailable(ticker_code, "Ticker missing from yfinance batch")
+                                continue
+
+                            ticker_obj = data.tickers[ticker_code]
+                            current = 0.0
+                            previous = 0.0
+                            volume = 0
+
+                            try:
+                                current = ticker_obj.fast_info.last_price
+                                previous = ticker_obj.fast_info.previous_close
+                                volume = ticker_obj.fast_info.last_volume
+                            except Exception:
+                                info = ticker_obj.info
+                                current = info.get('currentPrice') or info.get('regularMarketPrice') or 0.0
+                                previous = info.get('previousClose') or current
+                                volume = info.get('volume') or 0
+
+                            if not current:
+                                mark_ticker_unavailable(ticker_code, "No current price")
+                                continue
+
+                            change_pct = ((current - previous) / previous) * 100 if previous else 0.0
+                            update_price_cache(ticker_code, current, change_pct, volume, previous)
+                        except Exception as inner_error:
+                            mark_ticker_unavailable(ticker_code, inner_error)
                             continue
-                            
-                except Exception as batch_e:
-                    CACHE_STATUS["last_error"] = str(batch_e)
-                    print(f"Error updating batch {i}: {batch_e}")
-                
-                # Sleep longer between batches to avoid rate limits
+                except Exception as batch_error:
+                    CACHE_STATUS["last_error"] = str(batch_error)
+                    for ticker_code in tickers_with_suffix:
+                        mark_ticker_unavailable(ticker_code, batch_error)
+                    print(f"Error updating batch {start_index}: {batch_error}")
+
                 await asyncio.sleep(PRICE_BATCH_DELAY_SECONDS)
-            
-            # Sleep longer after a full cycle
+
             CACHE_STATUS["last_update_completed_at"] = utc_now_iso()
             CACHE_STATUS["last_error"] = None
             CACHE_STATUS["is_updating"] = False
+            CACHE_STATUS["current_ticker"] = None
             print(f"Full update cycle completed. Cache size: {len(PRICE_CACHE)}")
-            await asyncio.sleep(PRICE_REFRESH_INTERVAL_SECONDS) 
-            
-        except Exception as e:
-            CACHE_STATUS["last_error"] = str(e)
+            await asyncio.sleep(PRICE_REFRESH_INTERVAL_SECONDS)
+        except asyncio.CancelledError:
+            CACHE_STATUS["worker_running"] = False
             CACHE_STATUS["is_updating"] = False
-            print(f"Fatal error in background task: {e}")
+            raise
+        except Exception as error:
+            CACHE_STATUS["last_error"] = str(error)
+            CACHE_STATUS["is_updating"] = False
+            print(f"Fatal error in background task: {error}")
             await asyncio.sleep(5)
 
 
@@ -190,6 +169,14 @@ def get_health_data():
         "history_cache_ttl_seconds": HISTORY_CACHE_TTL_SECONDS,
         "cache_coverage_percent": round(coverage, 2),
         "is_updating": CACHE_STATUS["is_updating"],
+        "worker_running": CACHE_STATUS["worker_running"],
+        "current_batch_start": CACHE_STATUS["current_batch_start"],
+        "current_batch_end": CACHE_STATUS["current_batch_end"],
+        "current_batch_size": CACHE_STATUS["current_batch_size"],
+        "current_ticker": CACHE_STATUS["current_ticker"],
+        "last_successful_ticker": CACHE_STATUS["last_successful_ticker"],
+        "failed_tickers_count": CACHE_STATUS["failed_tickers_count"],
+        "unavailable_tickers_count": len(UNAVAILABLE_TICKERS),
         "last_update_started_at": CACHE_STATUS["last_update_started_at"],
         "last_update_completed_at": CACHE_STATUS["last_update_completed_at"],
         "last_error": CACHE_STATUS["last_error"],
@@ -197,26 +184,19 @@ def get_health_data():
 
 
 async def get_stocks_data(page: int = 1, limit: int = 10, search: Optional[str] = None):
-    """
-    Get a paginated list of stocks using CACHED data for instant response.
-    """
-    # Filter by search
     filtered_stocks = STOCKS_DB
     if search:
         search_lower = search.lower()
         filtered_stocks = [
-            s for s in STOCKS_DB 
-            if search_lower in s['ticker'].lower() or search_lower in s['name'].lower()
+            stock for stock in STOCKS_DB
+            if search_lower in stock['ticker'].lower() or search_lower in stock['name'].lower()
         ]
-    
+
     total = len(filtered_stocks)
     total_pages = math.ceil(total / limit)
-    
-    # Pagination slicing
     start_idx = (page - 1) * limit
     end_idx = start_idx + limit
     paginated_stocks = filtered_stocks[start_idx:end_idx]
-    
     results = [build_stock_summary(stock) for stock in paginated_stocks]
 
     return {
@@ -224,22 +204,37 @@ async def get_stocks_data(page: int = 1, limit: int = 10, search: Optional[str] 
         "total": total,
         "page": page,
         "limit": limit,
-        "total_pages": total_pages
+        "total_pages": total_pages,
+    }
+
+
+def default_metrics():
+    return {
+        "open": 0.0,
+        "high": 0.0,
+        "low": 0.0,
+        "previous_close": 0.0,
+        "volume": 0,
+    }
+
+
+def cache_history(cache_key, current, change_pct, history_points, metrics, cached_at):
+    HISTORY_CACHE[cache_key] = {
+        "last_price": current,
+        "change_percent": change_pct,
+        "history": history_points,
+        "metrics": metrics,
+        "cached_at": cached_at,
     }
 
 
 async def get_stock_detail_data(ticker: str, period: str = "1mo"):
-    """
-    Get detailed historical data for a stock.
-    """
     if period not in VALID_HISTORY_PERIODS:
         raise HTTPException(status_code=400, detail="Invalid period. Use one of: 5d, 1mo, 3mo, 6mo, 1y")
-    # Find name
-    stock_info = next((s for s in STOCKS_DB if s["ticker"] == ticker.upper()), None)
+
+    stock_info = next((stock for stock in STOCKS_DB if stock["ticker"] == ticker.upper()), None)
     name = stock_info["name"] if stock_info else "Unknown Company"
-    
     ticker_jk = f"{ticker.upper()}.JK"
-    
     cache_key = f"{ticker_jk}:{period}"
     cached_history = HISTORY_CACHE.get(cache_key)
     current = 0.0
@@ -247,13 +242,7 @@ async def get_stock_detail_data(ticker: str, period: str = "1mo"):
     history_points = []
     data_source = "unavailable"
     last_updated_at = None
-    detail_metrics = {
-        "open": 0.0,
-        "high": 0.0,
-        "low": 0.0,
-        "previous_close": 0.0,
-        "volume": 0,
-    }
+    detail_metrics = default_metrics()
 
     if is_history_cache_fresh(cached_history):
         current = cached_history["last_price"]
@@ -278,21 +267,11 @@ async def get_stock_detail_data(ticker: str, period: str = "1mo"):
                     "previous_close": chart_data["previous_close"],
                     "volume": int(chart_data["volume"] or 0),
                 }
-                PRICE_CACHE[ticker_jk] = {
-                    "last_price": current,
-                    "change_percent": change_pct,
-                    "volume": chart_data["volume"],
-                    "prev_close": chart_data["previous_close"],
-                }
-                HISTORY_CACHE[cache_key] = {
-                    "last_price": current,
-                    "change_percent": change_pct,
-                    "history": history_points,
-                    "metrics": detail_metrics,
-                    "cached_at": last_updated_at,
-                }
-        except Exception as e:
-            print(f"Warning: Yahoo chart API failed for {ticker}: {e}")
+                update_price_cache(ticker_jk, current, change_pct, chart_data["volume"], chart_data["previous_close"])
+                cache_history(cache_key, current, change_pct, history_points, detail_metrics, last_updated_at)
+        except Exception as error:
+            mark_ticker_unavailable(ticker_jk, error)
+            print(f"Warning: Yahoo chart API failed for {ticker}: {error}")
 
     if not history_points and cached_history:
         current = cached_history["last_price"]
@@ -313,33 +292,17 @@ async def get_stock_detail_data(ticker: str, period: str = "1mo"):
 
     if not history_points:
         try:
-            stock = yf.Ticker(ticker_jk)
-            if not current:
-                current = stock.fast_info.last_price
-                prev = stock.fast_info.previous_close
-                if prev and prev != 0:
-                    change_pct = ((current - prev) / prev) * 100
-
-            hist = stock.history(period=period)
-            for date, row in hist.iterrows():
-                history_points.append({
-                    "date": date.strftime("%Y-%m-%d"),
-                    "price": row['Close']
-                })
-            if history_points:
-                data_source = "yfinance_fallback"
-                last_updated_at = utc_now_iso()
-                if not current and history_points:
-                    current = history_points[-1]["price"]
-                HISTORY_CACHE[cache_key] = {
-                    "last_price": current,
-                    "change_percent": change_pct,
-                    "history": history_points,
-                    "metrics": detail_metrics,
-                    "cached_at": last_updated_at,
-                }
-        except Exception as e:
-            print(f"Warning: Failed to fetch history for {ticker}: {e}")
+            fallback_data = fetch_yfinance_history(ticker_jk, period, current, change_pct)
+            if fallback_data:
+                current = fallback_data["current"]
+                change_pct = fallback_data["change_percent"]
+                history_points = fallback_data["history"]
+                data_source = fallback_data["data_source"]
+                last_updated_at = fallback_data["last_updated_at"]
+                cache_history(cache_key, current, change_pct, history_points, detail_metrics, last_updated_at)
+        except Exception as error:
+            mark_ticker_unavailable(ticker_jk, error)
+            print(f"Warning: Failed to fetch history for {ticker}: {error}")
 
     return {
         "ticker": ticker.upper(),
@@ -354,14 +317,15 @@ async def get_stock_detail_data(ticker: str, period: str = "1mo"):
         "low": detail_metrics["low"],
         "previous_close": detail_metrics["previous_close"],
         "volume": int(detail_metrics["volume"] or 0),
-        "history": history_points
+        "history": history_points,
     }
-
 
 
 def get_market_summary_data():
     summaries = []
-    for ticker_key, cache_data in PRICE_CACHE.items():
+    for ticker_key in PRICE_CACHE:
+        if is_ticker_unavailable(ticker_key):
+            continue
         ticker = ticker_key.replace(".JK", "")
         stock = next((item for item in STOCKS_DB if item["ticker"] == ticker), None)
         if not stock:

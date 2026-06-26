@@ -171,8 +171,14 @@ const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false }) => {
                     </div>
                 )}
                 {!hasHistory ? (
-                    <div className="h-full flex items-center justify-center text-slate-400 border border-dashed border-slate-700 rounded-xl">
-                        No historical data available for this period. Data source: {formatDataSource(stockDetail.data_source)}
+                    <div className="h-full flex items-center justify-center rounded-xl border border-dashed border-slate-700 p-6 text-center text-slate-400">
+                        <div>
+                            <div className="text-base font-semibold text-slate-200">Historical chart is warming up</div>
+                            <p className="mt-2 max-w-md text-sm">
+                                No price history is available for {ticker} in the {stockDetail.period.toUpperCase()} period yet. Current source: {formatDataSource(stockDetail.data_source)}.
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">Try another period or wait until the backend provider refresh finishes.</p>
+                        </div>
                     </div>
                 ) : (
                     <ResponsiveContainer width="100%" height="100%">

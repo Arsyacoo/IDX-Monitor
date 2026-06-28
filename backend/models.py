@@ -39,6 +39,15 @@ class StockListResponse(BaseModel):
 class StockHistoryPoint(BaseModel):
     date: str
     price: float
+    ma20: Optional[float] = None
+    ma50: Optional[float] = None
+
+class TechnicalIndicators(BaseModel):
+    ma20: Optional[float]
+    ma50: Optional[float]
+    rsi14: Optional[float]
+    trend_label: str
+    period_points: int
 
 class StockDetail(BaseModel):
     ticker: str
@@ -54,6 +63,7 @@ class StockDetail(BaseModel):
     previous_close: float
     volume: int
     history: List[StockHistoryPoint]
+    technical_indicators: TechnicalIndicators
 
 
 

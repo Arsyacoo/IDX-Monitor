@@ -4,6 +4,7 @@ from cache import clear_unavailable_ticker, is_ticker_unavailable, mark_ticker_u
 from config import parse_cors_origins
 from services.providers.retry import retry_with_backoff
 from services.providers.yahoo_chart import fetch_yahoo_chart
+from services.technical_indicators import calculate_technical_indicators
 from services.whale_detector import build_whale_alert, classify_whale_signal
 from main import (
     app,
@@ -140,6 +141,18 @@ def test_history_cache_freshness_uses_cached_at():
     assert is_history_cache_fresh(None) is False
 
 
+def test_technical_indicators_identify_bullish_trend():
+    history = [{'date': f'2026-01-{day:02d}', 'price': float(day)} for day in range(1, 61)]
+
+    indicators = calculate_technical_indicators(history, last_price=60.0)
+
+    assert indicators['ma20'] == 50.5
+    assert indicators['ma50'] == 35.5
+    assert indicators['rsi14'] == 100.0
+    assert indicators['trend_label'] == 'Bullish'
+    assert indicators['period_points'] == 60
+
+
 def test_stock_detail_can_return_history_cache_without_external_fetch():
     cache_key = 'TEST.JK:1mo'
     HISTORY_CACHE[cache_key] = {
@@ -169,7 +182,14 @@ def test_stock_detail_can_return_history_cache_without_external_fetch():
     assert payload['low'] == 980.0
     assert payload['previous_close'] == 985.0
     assert payload['volume'] == 123456
-    assert payload['history'] == [{'date': '2026-01-01', 'price': 1000.0}]
+    assert payload['history'] == [{'date': '2026-01-01', 'price': 1000.0, 'ma20': 1000.0, 'ma50': 1000.0}]
+    assert payload['technical_indicators'] == {
+        'ma20': 1000.0,
+        'ma50': 1000.0,
+        'rsi14': None,
+        'trend_label': 'Insufficient Data',
+        'period_points': 1,
+    }
 
     HISTORY_CACHE.pop(cache_key, None)
 

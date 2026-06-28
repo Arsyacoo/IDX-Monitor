@@ -10,11 +10,13 @@
 - Watchlist import/export as JSON.
 - Search keyboard shortcuts: Enter selects first result, Esc clears search.
 - Backend health visibility for cache coverage, worker status, and provider warnings.
+- Technical indicators for stock details: MA20, MA50, RSI 14, and trend label.
 
 ### Changed
 - Backend models, cache state, and runtime config are split into dedicated modules.
 - Frontend chart and whale alert screens are lazy-loaded for smaller initial bundles.
 - README and Windows launcher now describe the current local development flow.
+- Stock chart shows moving-average overlays and an indicator summary panel.
 
 ### Removed
 - Legacy yfinance debug scripts that are replaced by provider modules and tests.

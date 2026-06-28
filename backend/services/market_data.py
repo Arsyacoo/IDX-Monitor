@@ -26,6 +26,7 @@ from config import (
 )
 from services.providers.yahoo_chart import fetch_yahoo_chart
 from services.providers.yfinance_provider import fetch_yfinance_batch, fetch_yfinance_history
+from services.technical_indicators import build_enriched_history, calculate_technical_indicators
 
 STOCKS_DB = []
 try:
@@ -304,6 +305,9 @@ async def get_stock_detail_data(ticker: str, period: str = "1mo"):
             mark_ticker_unavailable(ticker_jk, error)
             print(f"Warning: Failed to fetch history for {ticker}: {error}")
 
+    technical_indicators = calculate_technical_indicators(history_points, current)
+    enriched_history = build_enriched_history(history_points)
+
     return {
         "ticker": ticker.upper(),
         "name": name,
@@ -317,7 +321,8 @@ async def get_stock_detail_data(ticker: str, period: str = "1mo"):
         "low": detail_metrics["low"],
         "previous_close": detail_metrics["previous_close"],
         "volume": int(detail_metrics["volume"] or 0),
-        "history": history_points,
+        "history": enriched_history,
+        "technical_indicators": technical_indicators,
     }
 
 

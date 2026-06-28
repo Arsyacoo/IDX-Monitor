@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchStockHistory } from '../api';
 import {
-    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine
+    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Line
 } from 'recharts';
 
 const PERIOD_OPTIONS = [
@@ -27,7 +27,8 @@ const formatVolume = (value) => new Intl.NumberFormat('id-ID', {
 const ChartTooltip = ({ active, payload, label, firstPrice }) => {
     if (!active || !payload?.length) return null;
 
-    const price = payload[0].value;
+    const pricePoint = payload.find((item) => item.dataKey === 'price') || payload[0];
+    const price = pricePoint.value;
     const changeFromStart = firstPrice ? ((price - firstPrice) / firstPrice) * 100 : 0;
     const isPositive = changeFromStart >= 0;
 
@@ -35,6 +36,14 @@ const ChartTooltip = ({ active, payload, label, firstPrice }) => {
         <div className="rounded-lg border border-slate-700 bg-slate-900/95 p-3 shadow-xl">
             <div className="text-xs text-slate-400">{label}</div>
             <div className="mt-1 font-mono text-sm font-semibold text-white">{formatPrice(price)}</div>
+            <div className="mt-2 space-y-1 text-xs text-slate-300">
+                {payload.filter((item) => item.dataKey !== 'price').map((item) => (
+                    <div key={item.dataKey} className="flex items-center justify-between gap-4">
+                        <span style={{ color: item.color }}>{item.name}</span>
+                        <span className="font-mono">{formatPrice(item.value)}</span>
+                    </div>
+                ))}
+            </div>
             <div className={`mt-1 text-xs font-semibold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
                 {isPositive ? '+' : ''}{changeFromStart.toFixed(2)}% vs start
             </div>
@@ -48,6 +57,12 @@ const MetricCard = ({ label, value }) => (
         <div className="mt-1 font-mono text-sm font-semibold text-slate-100">{value}</div>
     </div>
 );
+
+const indicatorTone = (trendLabel) => ({
+    Bullish: 'text-emerald-400 border-emerald-800/60 bg-emerald-950/20',
+    Bearish: 'text-red-400 border-red-800/60 bg-red-950/20',
+    Sideways: 'text-yellow-300 border-yellow-800/60 bg-yellow-950/20',
+}[trendLabel] || 'text-slate-300 border-slate-700 bg-slate-800/50');
 
 const formatDataSource = (source) => ({
     yahoo_chart: 'Yahoo Chart API',
@@ -110,6 +125,7 @@ const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false }) => {
     const periodHigh = hasHistory ? Math.max(...stockDetail.history.map((point) => point.price)) : 0;
     const periodLow = hasHistory ? Math.min(...stockDetail.history.map((point) => point.price)) : 0;
     const periodChange = firstHistoryPrice ? ((stockDetail.last_price - firstHistoryPrice) / firstHistoryPrice) * 100 : 0;
+    const indicators = stockDetail.technical_indicators || {};
 
     return (
         <div className={`bg-idx-card rounded-xl shadow-lg border border-slate-700 ${compactMode ? 'p-4' : 'p-6'} h-full flex flex-col`}>
@@ -164,6 +180,16 @@ const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false }) => {
                 <MetricCard label="Volume" value={formatVolume(stockDetail.volume)} />
             </div>
 
+            <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className={`rounded-lg border p-3 ${indicatorTone(indicators.trend_label)}`}>
+                    <div className="text-[11px] uppercase tracking-wide opacity-70">Trend</div>
+                    <div className="mt-1 text-sm font-bold">{indicators.trend_label || 'Unknown'}</div>
+                </div>
+                <MetricCard label="MA20" value={indicators.ma20 ? formatPrice(indicators.ma20) : '-'} />
+                <MetricCard label="MA50" value={indicators.ma50 ? formatPrice(indicators.ma50) : '-'} />
+                <MetricCard label="RSI 14" value={indicators.rsi14 ? indicators.rsi14.toFixed(2) : '-'} />
+            </div>
+
             <div className="flex-1 w-full min-h-[260px] relative">
                 {isFetching && (
                     <div className="absolute right-3 top-3 z-10 rounded-full bg-slate-900/80 px-3 py-1 text-xs text-idx-accent border border-slate-700">
@@ -210,11 +236,14 @@ const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false }) => {
                             <Area
                                 type="monotone"
                                 dataKey="price"
+                                name="Price"
                                 stroke={color}
                                 fillOpacity={1}
                                 fill="url(#colorPrice)"
                                 strokeWidth={2}
                             />
+                            <Line type="monotone" dataKey="ma20" name="MA20" stroke="#38bdf8" strokeWidth={1.5} dot={false} connectNulls />
+                            <Line type="monotone" dataKey="ma50" name="MA50" stroke="#f59e0b" strokeWidth={1.5} dot={false} connectNulls />
                         </AreaChart>
                     </ResponsiveContainer>
                 )}

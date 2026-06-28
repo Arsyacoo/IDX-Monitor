@@ -1,80 +1,121 @@
-# 🇮🇩 IDX Monitor
+﻿# IDX Monitor
 
-**IDX Monitor** adalah dashboard *real-time* yang elegan dan canggih untuk memantau pasar saham Indonesia (Bursa Efek Indonesia / IDX). Dibangun dengan teknologi web modern, aplikasi ini memberikan wawasan mendalam tentang pergerakan harga saham dan aktivitas pasar yang tidak biasa ("Whale Activities") dalam antarmuka yang responsif dan memukau.
+**IDX Monitor** adalah dashboard pemantauan saham Indonesia (IDX) untuk melihat harga terkini, grafik historis, ringkasan pasar, watchlist, dan deteksi aktivitas volume tidak biasa atau *whale alerts*.
 
-## ✨ Fitur Utama
+## Fitur Utama
 
-*   **📈 Monitoring Real-Time**: Pantau harga saham terkini, persentase perubahan, dan status pasar secara langsung.
-*   **🐋 Whale Alerts**: Fitur unggulan untuk mendeteksi lonjakan volume transaksi yang tidak wajar, membantu Anda mengidentifikasi akumulasi besar-besaran oleh investor institusi ("Bandar").
-*   **📊 Visualisasi Interaktif**: Grafik harga historis yang responsif untuk analisis teknikal cepat.
-*   **🔍 Pencarian Pintar**: Cari emiten favorit Anda dengan mudah dan cepat.
-*   **🎨 Desain Premium**: Antarmuka gelap (Dark Mode) yang modern, bersih, dan nyaman di mata, dirancang untuk pengalaman pengguna terbaik.
+- **Market Dashboard**: daftar emiten IDX dengan harga terakhir, perubahan harga, volume, pencarian, pagination, dan sorting.
+- **Interactive Chart**: grafik historis per ticker dengan pilihan periode `5D`, `1M`, `3M`, `6M`, dan `1Y`.
+- **Backend Health Banner**: status cache, worker background, coverage data, unavailable ticker, dan provider warning langsung dari dashboard.
+- **Whale Alerts**: deteksi lonjakan volume dan perubahan harga untuk membantu menemukan pergerakan pasar yang tidak biasa.
+- **Watchlist Lokal**: simpan ticker favorit di browser, termasuk import/export JSON.
+- **Dashboard Settings**: pengaturan auto-refresh, default periode chart, sort tabel, dan compact mode.
 
-## 🛠️ Teknologi yang Digunakan
-
-Project ini dibangun menggunakan *stack* teknologi terkini untuk performa dan skalabilitas maksimal:
+## Teknologi
 
 ### Frontend
-*   **React + Vite**: Untuk performa UI yang super cepat.
-*   **Tailwind CSS**: Untuk styling yang konsisten dan modern.
-*   **TanStack Query**: Manajemen state server yang efisien (caching, auto-refetching).
-*   **Recharts**: Visualisasi data yang cantik dan informatif.
-*   **Lucide React**: Ikonografi yang tajam dan konsisten.
+- React + Vite
+- TanStack Query
+- Recharts
+- Lucide React
+- Tailwind CSS/PostCSS
 
 ### Backend
-*   **FastAPI**: Framework Python berkinerja tinggi untuk API.
-*   **yfinance**: Pengambilan data pasar saham *real-time*.
-*   **Python 3.10+**: Bahasa pemrograman utama untuk logika backend.
+- FastAPI
+- yfinance
+- Yahoo Chart API provider
+- Pydantic
+- Pytest
 
-## 🚀 Cara Menjalankan
+## Prasyarat
 
-Ikuti langkah-langkah mudah ini untuk menjalankan IDX Monitor di komputer Anda:
+Pastikan sudah tersedia:
 
-### Prasyarat
-Pastikan Anda sudah menginstall:
-*   [Node.js](https://nodejs.org/) (untuk frontend)
-*   [Python](https://python.org/) (untuk backend)
-*   Git
+- Node.js 20+ atau versi LTS terbaru
+- Python 3.10+
+- Git
 
-### Instalasi & Menjalankan
+## Menjalankan Project
 
-1.  **Clone Repository**
-    ```bash
-    git clone https://github.com/Arsyacoo/IDX-Monitor.git
-    cd IDX-Monitor
-    ```
+### Cara Cepat Windows
 
-2.  **Jalankan Aplikasi (Cara Cepat)**
-    Pengguna Windows cukup mengklik ganda file `run_app.bat` di folder root. Script ini akan otomatis menginstal dependensi dan menjalankan backend serta frontend secara bersamaan.
+Klik dua kali `run_app.bat` dari folder root project. Script akan membuka dua terminal:
 
-3.  **Jalankan Secara Manual**
+- Backend: `http://localhost:8000`
+- Frontend: `http://localhost:5173`
 
-    *   **Backend (Terminal 1)**
-        ```bash
-        cd backend
-        pip install -r requirements.txt
-        uvicorn main:app --reload
-        ```
-    
-    *   **Frontend (Terminal 2)**
-        ```bash
-        cd frontend
-        npm install
-        npm run dev
-        ```
+### Cara Manual
 
-4.  Buka browser dan akses `http://localhost:5173` (atau port yang tertera di terminal).
+Backend:
 
-## 📸 Preview
+```bash
+cd backend
+python -m pip install -r requirements.txt
+uvicorn main:app --reload
+```
 
-*Dashboard saham dengan grafik interaktif dan daftar saham yang responsif.*
+Frontend:
 
-<img width="1362" height="983" alt="image" src="https://github.com/user-attachments/assets/52738bb0-12af-4746-b29b-a3636a7bf298" />
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-## 🤝 Kontribusi
+Lalu buka `http://localhost:5173` di browser.
 
-Kontribusi selalu diterima! Jangan ragu untuk membuka *Issue* atau *Pull Request* jika Anda memiliki ide perbaikan atau fitur baru.
+## Konfigurasi Environment
+
+Backend membaca konfigurasi dari environment variable berikut. Contoh tersedia di `backend/.env.example`.
+
+| Variable | Default | Fungsi |
+| --- | --- | --- |
+| `CORS_ORIGINS` | `*` | Origin frontend yang diizinkan mengakses API. |
+| `PRICE_BATCH_SIZE` | `50` | Jumlah ticker yang diproses per batch worker. |
+| `PRICE_BATCH_DELAY_SECONDS` | `2` | Delay antar batch worker. |
+| `PRICE_REFRESH_INTERVAL_SECONDS` | `60` | Interval refresh harga background worker. |
+| `HISTORY_CACHE_TTL_SECONDS` | `600` | Masa berlaku cache histori chart. |
+| `UNAVAILABLE_TICKER_TTL_SECONDS` | `3600` | Durasi skip ticker yang gagal dari provider. |
+| `EXTERNAL_REQUEST_RETRIES` | `2` | Jumlah retry request ke provider eksternal. |
+| `EXTERNAL_REQUEST_BACKOFF_SECONDS` | `1` | Delay awal exponential backoff provider. |
+
+Frontend membaca `VITE_API_BASE_URL` dari `frontend/.env.example`.
+
+## Validasi Lokal
+
+Backend:
+
+```bash
+cd backend
+python -m pytest -q
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm run lint
+npm run build
+```
+
+## Struktur Project
+
+```text
+backend/
+  routes/              # API routes FastAPI
+  services/            # business logic dan data provider
+  services/providers/  # Yahoo/yfinance provider + retry helper
+  tests/               # test backend
+frontend/
+  src/components/      # UI dashboard, chart, whale alerts
+  src/api.js           # API client frontend
+run_app.bat            # launcher lokal Windows
+```
+
+## Catatan Data
+
+Data harga dan histori bergantung pada provider eksternal. Jika chart belum muncul, cek **Backend Data Health** di dashboard untuk melihat status worker, cache coverage, ticker yang sedang diproses, dan warning provider terakhir.
 
 ---
-Dibuat dengan ❤️ oleh [Arsyacoo](https://github.com/Arsyacoo)
 
+Dibuat oleh [Arsyacoo](https://github.com/Arsyacoo).

@@ -34,6 +34,45 @@ const formatHealthTime = (value) => {
   return new Date(value).toLocaleTimeString('id-ID');
 };
 
+const normalizeWatchlistItem = (item) => {
+  if (typeof item === 'string') {
+    return {
+      ticker: item.trim().toUpperCase(),
+      note: '',
+      targetPrice: '',
+      alertThreshold: 5,
+    };
+  }
+
+  return {
+    ticker: String(item?.ticker || '').trim().toUpperCase(),
+    note: String(item?.note || ''),
+    targetPrice: item?.targetPrice ?? '',
+    alertThreshold: Number(item?.alertThreshold ?? 5),
+  };
+};
+
+const normalizeWatchlist = (items) => {
+  if (!Array.isArray(items)) return [];
+  const normalizedItems = items.map(normalizeWatchlistItem).filter((item) => item.ticker);
+  return [...new Map(normalizedItems.map((item) => [item.ticker, item])).values()];
+};
+
+const getTargetStatus = (stock, item) => {
+  const targetPrice = Number(item.targetPrice);
+  if (!stock || !targetPrice) return null;
+
+  const distancePercent = ((targetPrice - stock.last_price) / stock.last_price) * 100;
+  const threshold = Number(item.alertThreshold || 5);
+  const isNearTarget = Math.abs(distancePercent) <= threshold;
+
+  return {
+    distancePercent,
+    isNearTarget,
+    label: isNearTarget ? 'Near target' : `${distancePercent > 0 ? '+' : ''}${distancePercent.toFixed(1)}% to target`,
+  };
+};
+
 const HealthBanner = ({ health, isLoading, isError }) => {
   const isDegraded = isError || health?.status === 'degraded';
   const coverage = health?.cache_coverage_percent ?? 0;
@@ -168,7 +207,7 @@ const SettingsPanel = ({ settings, onChange, onClose }) => (
   </div>
 );
 
-const WatchlistBoard = ({ stocks, watchlist, onOpenTicker }) => {
+const WatchlistBoard = ({ stocks, watchlist, onOpenTicker, onUpdateWatchlistItem }) => {
   if (watchlist.length === 0) return null;
 
   return (
@@ -176,22 +215,61 @@ const WatchlistBoard = ({ stocks, watchlist, onOpenTicker }) => {
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h2 className="font-bold text-white">Watchlist Board</h2>
-          <p className="text-xs text-slate-400">Quick access to your saved tickers on the current data page.</p>
+          <p className="text-xs text-slate-400">Quick access, notes, target prices, and alert thresholds.</p>
         </div>
         <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">{watchlist.length} saved</span>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {watchlist.slice(0, 8).map((ticker) => {
-          const stock = stocks.find((item) => item.ticker === ticker);
+        {watchlist.slice(0, 8).map((item) => {
+          const stock = stocks.find((stockItem) => stockItem.ticker === item.ticker);
+          const targetStatus = getTargetStatus(stock, item);
           return (
-            <button key={ticker} type="button" onClick={() => onOpenTicker(ticker)} className="rounded-lg border border-slate-700 bg-slate-800/70 p-3 text-left transition-colors hover:border-idx-accent focus:outline-none focus:ring-2 focus:ring-idx-accent">
-              <div className="font-bold text-white">{ticker}</div>
-              <div className="mt-1 truncate text-xs text-slate-400">{stock?.name || 'Open ticker chart'}</div>
-              <div className="mt-3 flex items-center justify-between text-sm">
-                <span className="font-mono text-slate-200">{stock ? formatCompact(stock.last_price) : '-'}</span>
-                <span className={stock?.change_percent >= 0 ? 'text-emerald-400' : 'text-red-400'}>{stock ? `${stock.change_percent}%` : 'Open'}</span>
+            <div key={item.ticker} className={`rounded-lg border bg-slate-800/70 p-3 transition-colors ${targetStatus?.isNearTarget ? 'border-yellow-500/70' : 'border-slate-700'}`}>
+              <button type="button" onClick={() => onOpenTicker(item.ticker)} className="w-full text-left focus:outline-none focus:ring-2 focus:ring-idx-accent rounded-md">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-bold text-white">{item.ticker}</div>
+                    <div className="mt-1 truncate text-xs text-slate-400">{stock?.name || 'Open ticker chart'}</div>
+                  </div>
+                  {targetStatus?.isNearTarget && <span className="rounded-full border border-yellow-500/50 bg-yellow-500/10 px-2 py-0.5 text-[10px] font-bold uppercase text-yellow-300">Alert</span>}
+                </div>
+                <div className="mt-3 flex items-center justify-between text-sm">
+                  <span className="font-mono text-slate-200">{stock ? formatCompact(stock.last_price) : '-'}</span>
+                  <span className={stock?.change_percent >= 0 ? 'text-emerald-400' : 'text-red-400'}>{stock ? `${stock.change_percent}%` : 'Open'}</span>
+                </div>
+              </button>
+              <div className="mt-3 space-y-2 border-t border-slate-700 pt-3">
+                <input
+                  type="text"
+                  value={item.note}
+                  onChange={(event) => onUpdateWatchlistItem(item.ticker, { note: event.target.value })}
+                  placeholder="Add note..."
+                  className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-200 placeholder:text-slate-500"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    value={item.targetPrice}
+                    onChange={(event) => onUpdateWatchlistItem(item.ticker, { targetPrice: event.target.value })}
+                    placeholder="Target price"
+                    className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-200 placeholder:text-slate-500"
+                  />
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={item.alertThreshold}
+                    onChange={(event) => onUpdateWatchlistItem(item.ticker, { alertThreshold: event.target.value })}
+                    className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-200"
+                    aria-label={`${item.ticker} alert threshold percentage`}
+                  />
+                </div>
+                <div className={`text-xs ${targetStatus?.isNearTarget ? 'text-yellow-300' : 'text-slate-500'}`}>
+                  {targetStatus ? targetStatus.label : 'Set target price to enable alert'}
+                </div>
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
@@ -243,7 +321,7 @@ function Dashboard() {
   const importInputRef = useRef(null);
   const [watchlist, setWatchlist] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem(WATCHLIST_STORAGE_KEY)) || [];
+      return normalizeWatchlist(JSON.parse(localStorage.getItem(WATCHLIST_STORAGE_KEY)) || []);
     } catch {
       return [];
     }
@@ -300,11 +378,17 @@ function Dashboard() {
   }, [error]);
 
   const toggleWatchlist = (ticker) => {
-    setWatchlist((currentWatchlist) => (
-      currentWatchlist.includes(ticker)
-        ? currentWatchlist.filter((item) => item !== ticker)
-        : [...currentWatchlist, ticker]
-    ));
+    setWatchlist((currentWatchlist) => {
+      const exists = currentWatchlist.some((item) => item.ticker === ticker);
+      if (exists) return currentWatchlist.filter((item) => item.ticker !== ticker);
+      return [...currentWatchlist, normalizeWatchlistItem(ticker)];
+    });
+  };
+
+  const updateWatchlistItem = (ticker, patch) => {
+    setWatchlist((currentWatchlist) => currentWatchlist.map((item) => (
+      item.ticker === ticker ? normalizeWatchlistItem({ ...item, ...patch }) : item
+    )));
   };
 
   const clearWatchlist = () => {
@@ -317,6 +401,7 @@ function Dashboard() {
     const payload = {
       app: 'IDX Monitor',
       exported_at: new Date().toISOString(),
+      version: 2,
       watchlist,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -338,13 +423,9 @@ function Dashboard() {
       try {
         const parsed = JSON.parse(reader.result);
         const importedWatchlist = Array.isArray(parsed) ? parsed : parsed.watchlist;
-        if (!Array.isArray(importedWatchlist)) return;
+        const normalizedWatchlist = normalizeWatchlist(importedWatchlist);
+        if (!normalizedWatchlist.length) return;
 
-        const normalizedWatchlist = [...new Set(
-          importedWatchlist
-            .map((ticker) => String(ticker).trim().toUpperCase())
-            .filter(Boolean)
-        )];
         setWatchlist(normalizedWatchlist);
         setShowWatchlistOnly(normalizedWatchlist.length > 0);
         addToast({ title: 'Watchlist imported', message: `${normalizedWatchlist.length} tickers loaded.` });
@@ -358,11 +439,12 @@ function Dashboard() {
   };
 
   const stocks = useMemo(() => stockData?.data || [], [stockData]);
+  const watchlistTickers = useMemo(() => watchlist.map((item) => item.ticker), [watchlist]);
   const totalPages = stockData?.total_pages || 1;
   const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString('id-ID') : '-';
   const visibleStocks = useMemo(() => (
-    showWatchlistOnly ? stocks.filter((stock) => watchlist.includes(stock.ticker)) : stocks
-  ), [showWatchlistOnly, stocks, watchlist]);
+    showWatchlistOnly ? stocks.filter((stock) => watchlistTickers.includes(stock.ticker)) : stocks
+  ), [showWatchlistOnly, stocks, watchlistTickers]);
   const marketSummary = useMemo(() => {
     const pageGainers = stocks.filter((stock) => stock.change_percent > 0).length;
     const pageLosers = stocks.filter((stock) => stock.change_percent < 0).length;
@@ -394,8 +476,8 @@ function Dashboard() {
 
     if (!nextValue) return;
 
-    const firstWatchlistStock = stocks.find((stock) => watchlist.includes(stock.ticker));
-    if (firstWatchlistStock && !watchlist.includes(selectedTicker)) {
+    const firstWatchlistStock = stocks.find((stock) => watchlistTickers.includes(stock.ticker));
+    if (firstWatchlistStock && !watchlistTickers.includes(selectedTicker)) {
       setSelectedTicker(firstWatchlistStock.ticker);
     }
   };
@@ -503,7 +585,7 @@ function Dashboard() {
 
             <HealthBanner health={healthData} isLoading={isHealthLoading} isError={isHealthError} />
 
-            <WatchlistBoard stocks={stocks} watchlist={watchlist} onOpenTicker={openTickerFromAlert} />
+            <WatchlistBoard stocks={stocks} watchlist={watchlist} onOpenTicker={openTickerFromAlert} onUpdateWatchlistItem={updateWatchlistItem} />
 
             <section className="max-w-7xl mx-auto mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <SummaryCard label="Loaded" value={marketSummary.loaded} helper={marketSummary.isMarketWide ? 'Cached market-wide' : 'Stocks on this page'} icon={Activity} tone="blue" />
@@ -533,7 +615,7 @@ function Dashboard() {
                     isLoading={isLoading || isFetching || stockData === undefined}
                     defaultSort={settings.defaultTableSort}
                     compactMode={settings.compactMode}
-                    watchlist={watchlist}
+                    watchlist={watchlistTickers}
                     onToggleWatchlist={toggleWatchlist}
                     showWatchlistOnly={showWatchlistOnly}
                   />

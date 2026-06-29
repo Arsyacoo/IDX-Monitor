@@ -22,6 +22,7 @@
 - Watchlist import/export now preserves metadata while staying compatible with legacy ticker arrays.
 - Yahoo Chart and yfinance providers now record success/failure health signals.
 - Public dashboard now shows simplified market data status, while technical diagnostics require `?debug=true`.
+- Public dashboard hero, market status cards, summary cards, and table empty states are polished for a cleaner product feel.
 
 ### Removed
 - Legacy yfinance debug scripts that are replaced by provider modules and tests.

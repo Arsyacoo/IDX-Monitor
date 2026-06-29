@@ -220,7 +220,17 @@ const StockTable = ({
                         {visibleStocks.length === 0 && !isLoading && (
                             <tr>
                                 <td colSpan="4" className="p-8 text-center text-gray-400">
-                                    {showWatchlistOnly ? 'Your watchlist is empty on this page. Add stocks with the star button or switch pages.' : 'No stocks found for this filter.'}
+                                    <div className="mx-auto flex max-w-sm flex-col items-center rounded-2xl border border-dashed border-slate-700 bg-slate-900/50 p-6">
+                                        <div className="mb-3 rounded-full border border-slate-700 bg-slate-800 p-3 text-slate-400">
+                                            {showWatchlistOnly ? <Star size={20} /> : <Search size={20} />}
+                                        </div>
+                                        <div className="font-semibold text-slate-200">
+                                            {showWatchlistOnly ? 'Watchlist belum tersedia di halaman ini' : 'Tidak ada saham yang cocok'}
+                                        </div>
+                                        <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                                            {showWatchlistOnly ? 'Tambahkan saham dengan tombol bintang atau pindah halaman untuk melihat watchlist lain.' : 'Coba kata kunci ticker lain atau ubah filter market data.'}
+                                        </p>
+                                    </div>
                                 </td>
                             </tr>
                         )}

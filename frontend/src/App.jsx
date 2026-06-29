@@ -87,33 +87,46 @@ const HealthBanner = ({ health, isLoading, isError, isDebug }) => {
     const isUpdating = isLoading || health?.is_updating || health?.worker_running;
     const lastUpdated = health?.last_update_completed_at || health?.last_update_started_at;
     const dataDelayed = isError || isDegraded || unavailableCount > 0 || coverage < 100;
+    const statusItems = [
+      {
+        title: 'Data sedang diperbarui',
+        helper: 'Harga diproses otomatis oleh sistem.',
+        value: isUpdating ? 'Live refresh' : 'Standby',
+        tone: isUpdating ? 'bg-blue-400' : 'bg-slate-500',
+      },
+      {
+        title: 'Terakhir diperbarui',
+        helper: 'Mengikuti waktu lokal browser.',
+        value: formatHealthTime(lastUpdated),
+        tone: 'bg-indigo-400',
+      },
+      {
+        title: dataDelayed ? 'Sebagian data mungkin tertunda' : 'Data tersedia normal',
+        helper: 'Beberapa ticker dapat menyusul saat refresh berikutnya.',
+        value: dataDelayed ? 'Monitoring' : 'Ready',
+        tone: dataDelayed ? 'bg-yellow-400' : 'bg-emerald-400',
+      },
+      {
+        title: isDegraded ? 'Market data delayed' : 'Market data healthy',
+        helper: 'Status koneksi data pasar.',
+        value: isDegraded ? 'Delayed' : 'Healthy',
+        tone: isDegraded ? 'bg-yellow-400' : 'bg-emerald-400',
+      },
+    ];
 
     return (
-      <section className="max-w-7xl mx-auto mb-6 rounded-2xl border border-slate-700 bg-slate-900/70 p-4 shadow-lg">
+      <section className="max-w-7xl mx-auto mb-6 rounded-3xl border border-slate-700/80 bg-slate-900/70 p-4 shadow-2xl shadow-slate-950/30 backdrop-blur">
         <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
-            <div className="flex items-center gap-2 font-semibold text-white">
-              <span className={`h-2.5 w-2.5 rounded-full ${isUpdating ? 'bg-blue-400 animate-pulse' : 'bg-slate-500'}`}></span>
-              Data sedang diperbarui
+          {statusItems.map((item) => (
+            <div key={item.title} className="rounded-2xl border border-slate-700/80 bg-slate-950/40 p-4 transition-colors hover:border-slate-600">
+              <div className="flex items-center justify-between gap-3">
+                <span className={`h-2.5 w-2.5 rounded-full ${item.tone} ${item.title === 'Data sedang diperbarui' && isUpdating ? 'animate-pulse' : ''}`}></span>
+                <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">{item.value}</span>
+              </div>
+              <div className="mt-3 font-semibold text-white">{item.title}</div>
+              <div className="mt-1 text-xs leading-relaxed text-slate-400">{item.helper}</div>
             </div>
-            <div className="mt-1 text-xs text-slate-400">Harga diproses otomatis oleh sistem.</div>
-          </div>
-          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
-            <div className="text-xs uppercase tracking-wide text-slate-500">Terakhir diperbarui</div>
-            <div className="mt-1 font-mono text-lg font-bold text-white">{formatHealthTime(lastUpdated)}</div>
-          </div>
-          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
-            <div className={`font-semibold ${dataDelayed ? 'text-yellow-300' : 'text-emerald-300'}`}>
-              {dataDelayed ? 'Sebagian data mungkin tertunda' : 'Data tersedia normal'}
-            </div>
-            <div className="mt-1 text-xs text-slate-400">Beberapa ticker dapat menyusul saat refresh berikutnya.</div>
-          </div>
-          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
-            <div className={`font-semibold ${isDegraded ? 'text-yellow-300' : 'text-emerald-300'}`}>
-              {isDegraded ? 'Market data delayed' : 'Market data healthy'}
-            </div>
-            <div className="mt-1 text-xs text-slate-400">Status koneksi data pasar.</div>
-          </div>
+          ))}
         </div>
       </section>
     );
@@ -388,7 +401,7 @@ const SummaryCard = ({ label, value, helper, icon, tone = 'slate' }) => {
   }[tone];
 
   return (
-    <div className="rounded-xl border border-slate-700 bg-idx-card p-4 shadow-lg">
+    <div className="rounded-2xl border border-slate-700/80 bg-gradient-to-br from-slate-900 to-slate-950 p-4 shadow-lg shadow-slate-950/20 transition-all hover:-translate-y-0.5 hover:border-slate-600">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
@@ -652,13 +665,17 @@ function Dashboard() {
 
       <div className="flex-1">
         {currentView === 'dashboard' ? (
-          <div className="p-6">
-            <header className="max-w-7xl mx-auto mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="px-4 py-6 sm:px-6">
+            <header className="max-w-7xl mx-auto mb-8 overflow-hidden rounded-3xl border border-slate-700/80 bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950/40 p-6 shadow-2xl shadow-slate-950/30">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-white">Market Overview</h1>
-                <p className="text-slate-400 text-sm">Real-time prices from Indonesia Stock Exchange</p>
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-200">
+                  <Activity size={13} /> IDX Market Intelligence
+                </div>
+                <h1 className="text-3xl font-bold text-white sm:text-4xl">Market Overview</h1>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">Pantau saham IDX, trend teknikal, whale activity, dan watchlist target dalam satu dashboard publik yang bersih.</p>
               </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 lg:justify-end">
                 <span>{settings.autoRefresh ? `Auto refresh every ${settings.refreshInterval / 1000} seconds` : 'Auto refresh off'}</span>
                 <button
                   type="button"
@@ -688,6 +705,7 @@ function Dashboard() {
                   </>
                 )}
               </div>
+              </div>
             </header>
 
             <HealthBanner health={healthData} isLoading={isHealthLoading} isError={isHealthError} isDebug={isDebugMode} />
@@ -703,7 +721,7 @@ function Dashboard() {
               <SummaryCard label="Top Volume" value={marketSummary.topVolume.ticker} helper={formatCompact(marketSummary.topVolume.volume)} icon={BarChart3} tone="yellow" />
             </section>
 
-            <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-360px)] min-h-[560px]">
+            <main className="max-w-7xl mx-auto grid grid-cols-1 gap-6 lg:grid-cols-12 lg:min-h-[680px]">
               <div className="lg:col-span-4 h-full">
                 {isLoading && !stocks.length ? (
                   <div className="h-full bg-idx-card rounded-xl animate-pulse"></div>

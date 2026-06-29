@@ -73,7 +73,7 @@ const getTargetStatus = (stock, item) => {
   };
 };
 
-const HealthBanner = ({ health, isLoading, isError }) => {
+const HealthBanner = ({ health, isLoading, isError, isDebug }) => {
   const isDegraded = isError || health?.status === 'degraded';
   const coverage = health?.cache_coverage_percent ?? 0;
   const unavailableCount = health?.unavailable_tickers_count ?? 0;
@@ -82,6 +82,42 @@ const HealthBanner = ({ health, isLoading, isError }) => {
   const batchRange = health?.current_batch_start !== null && health?.current_batch_start !== undefined
     ? `${health.current_batch_start + 1}-${health.current_batch_end}`
     : 'Waiting';
+
+  if (!isDebug) {
+    const isUpdating = isLoading || health?.is_updating || health?.worker_running;
+    const lastUpdated = health?.last_update_completed_at || health?.last_update_started_at;
+    const dataDelayed = isError || isDegraded || unavailableCount > 0 || coverage < 100;
+
+    return (
+      <section className="max-w-7xl mx-auto mb-6 rounded-2xl border border-slate-700 bg-slate-900/70 p-4 shadow-lg">
+        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
+            <div className="flex items-center gap-2 font-semibold text-white">
+              <span className={`h-2.5 w-2.5 rounded-full ${isUpdating ? 'bg-blue-400 animate-pulse' : 'bg-slate-500'}`}></span>
+              Data sedang diperbarui
+            </div>
+            <div className="mt-1 text-xs text-slate-400">Harga diproses otomatis oleh sistem.</div>
+          </div>
+          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Terakhir diperbarui</div>
+            <div className="mt-1 font-mono text-lg font-bold text-white">{formatHealthTime(lastUpdated)}</div>
+          </div>
+          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
+            <div className={`font-semibold ${dataDelayed ? 'text-yellow-300' : 'text-emerald-300'}`}>
+              {dataDelayed ? 'Sebagian data mungkin tertunda' : 'Data tersedia normal'}
+            </div>
+            <div className="mt-1 text-xs text-slate-400">Beberapa ticker dapat menyusul saat refresh berikutnya.</div>
+          </div>
+          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
+            <div className={`font-semibold ${isDegraded ? 'text-yellow-300' : 'text-emerald-300'}`}>
+              {isDegraded ? 'Market data delayed' : 'Market data healthy'}
+            </div>
+            <div className="mt-1 text-xs text-slate-400">Status koneksi data pasar.</div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className={`max-w-7xl mx-auto mb-6 rounded-2xl border p-4 shadow-lg ${isDegraded ? 'border-yellow-700/60 bg-yellow-950/20' : 'border-slate-700 bg-slate-900/70'}`}>
@@ -369,6 +405,7 @@ const SummaryCard = ({ label, value, helper, icon, tone = 'slate' }) => {
 
 function Dashboard() {
   const [toasts, setToasts] = useState([]);
+  const isDebugMode = useMemo(() => new URLSearchParams(window.location.search).get('debug') === 'true', []);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settings, setSettings] = useState(() => {
     try {
@@ -414,7 +451,7 @@ function Dashboard() {
     queryKey: ['providerDiagnostics'],
     queryFn: fetchProviderDiagnostics,
     refetchInterval: settings.autoRefresh ? settings.refreshInterval : false,
-    enabled: currentView === 'dashboard',
+    enabled: currentView === 'dashboard' && isDebugMode,
   });
 
   const addToast = (toast) => {
@@ -653,9 +690,9 @@ function Dashboard() {
               </div>
             </header>
 
-            <HealthBanner health={healthData} isLoading={isHealthLoading} isError={isHealthError} />
+            <HealthBanner health={healthData} isLoading={isHealthLoading} isError={isHealthError} isDebug={isDebugMode} />
 
-            <ProviderDiagnosticsPanel diagnostics={providerDiagnostics} isLoading={isProviderDiagnosticsLoading} isError={isProviderDiagnosticsError} />
+            {isDebugMode && <ProviderDiagnosticsPanel diagnostics={providerDiagnostics} isLoading={isProviderDiagnosticsLoading} isError={isProviderDiagnosticsError} />}
 
             <WatchlistBoard stocks={stocks} watchlist={watchlist} onOpenTicker={openTickerFromAlert} onUpdateWatchlistItem={updateWatchlistItem} />
 

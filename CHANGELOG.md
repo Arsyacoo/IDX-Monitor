@@ -21,6 +21,7 @@
 - Stock chart shows moving-average overlays and an indicator summary panel.
 - Watchlist import/export now preserves metadata while staying compatible with legacy ticker arrays.
 - Yahoo Chart and yfinance providers now record success/failure health signals.
+- Public dashboard now shows simplified market data status, while technical diagnostics require `?debug=true`.
 
 ### Removed
 - Legacy yfinance debug scripts that are replaced by provider modules and tests.

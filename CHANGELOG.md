@@ -12,6 +12,7 @@
 - Backend health visibility for cache coverage, worker status, and provider warnings.
 - Technical indicators for stock details: MA20, MA50, RSI 14, and trend label.
 - Smart watchlist metadata with notes, target prices, and alert thresholds.
+- Provider diagnostics endpoint and dashboard panel for provider counters and skipped tickers.
 
 ### Changed
 - Backend models, cache state, and runtime config are split into dedicated modules.
@@ -19,6 +20,7 @@
 - README and Windows launcher now describe the current local development flow.
 - Stock chart shows moving-average overlays and an indicator summary panel.
 - Watchlist import/export now preserves metadata while staying compatible with legacy ticker arrays.
+- Yahoo Chart and yfinance providers now record success/failure health signals.
 
 ### Removed
 - Legacy yfinance debug scripts that are replaced by provider modules and tests.

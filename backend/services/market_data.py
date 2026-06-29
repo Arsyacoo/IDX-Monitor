@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import json
 import math
 import os
@@ -10,6 +10,7 @@ from cache import (
     CACHE_STATUS,
     HISTORY_CACHE,
     PRICE_CACHE,
+    PROVIDER_STATUS,
     UNAVAILABLE_TICKERS,
     clear_unavailable_ticker,
     is_history_cache_fresh,
@@ -184,6 +185,42 @@ def get_health_data():
     }
 
 
+def get_provider_diagnostics_data():
+    providers = []
+    for key, provider in PROVIDER_STATUS.items():
+        if provider["last_error"]:
+            status = "degraded"
+        elif provider["last_success_at"]:
+            status = "ok"
+        else:
+            status = "idle"
+
+        providers.append({
+            "key": key,
+            "name": provider["name"],
+            "status": status,
+            "success_count": provider["success_count"],
+            "failure_count": provider["failure_count"],
+            "last_success_at": provider["last_success_at"],
+            "last_failure_at": provider["last_failure_at"],
+            "last_error": provider["last_error"],
+        })
+
+    unavailable_tickers = [
+        {
+            "ticker": ticker,
+            "reason": data.get("reason"),
+            "failed_at": data.get("failed_at"),
+            "retry_after": data.get("retry_after"),
+        }
+        for ticker, data in UNAVAILABLE_TICKERS.items()
+    ]
+
+    return {
+        "providers": providers,
+        "unavailable_tickers": unavailable_tickers,
+        "total_unavailable": len(unavailable_tickers),
+    }
 async def get_stocks_data(page: int = 1, limit: int = 10, search: Optional[str] = None):
     filtered_stocks = STOCKS_DB
     if search:
@@ -354,3 +391,4 @@ def get_market_summary_data():
         "top_losers": top_losers,
         "top_volume": top_volume,
     }
+

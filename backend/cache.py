@@ -6,6 +6,24 @@ from config import HISTORY_CACHE_TTL_SECONDS, UNAVAILABLE_TICKER_TTL_SECONDS
 PRICE_CACHE = {}
 HISTORY_CACHE = {}
 UNAVAILABLE_TICKERS = {}
+PROVIDER_STATUS = {
+    "yahoo_chart": {
+        "name": "Yahoo Chart API",
+        "success_count": 0,
+        "failure_count": 0,
+        "last_success_at": None,
+        "last_failure_at": None,
+        "last_error": None,
+    },
+    "yfinance": {
+        "name": "yfinance",
+        "success_count": 0,
+        "failure_count": 0,
+        "last_success_at": None,
+        "last_failure_at": None,
+        "last_error": None,
+    },
+}
 CACHE_STATUS = {
     "last_update_started_at": None,
     "last_update_completed_at": None,
@@ -59,3 +77,15 @@ def is_ticker_unavailable(ticker):
 
 def clear_unavailable_ticker(ticker):
     UNAVAILABLE_TICKERS.pop(ticker, None)
+
+def record_provider_success(provider_key):
+    provider = PROVIDER_STATUS[provider_key]
+    provider["success_count"] += 1
+    provider["last_success_at"] = utc_now_iso()
+    provider["last_error"] = None
+
+def record_provider_failure(provider_key, error):
+    provider = PROVIDER_STATUS[provider_key]
+    provider["failure_count"] += 1
+    provider["last_failure_at"] = utc_now_iso()
+    provider["last_error"] = str(error)

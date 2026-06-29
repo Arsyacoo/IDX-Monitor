@@ -22,6 +22,21 @@ class HealthResponse(BaseModel):
     last_update_completed_at: Optional[str]
     last_error: Optional[str]
 
+class ProviderStatus(BaseModel):
+    key: str
+    name: str
+    status: str
+    success_count: int
+    failure_count: int
+    last_success_at: Optional[str]
+    last_failure_at: Optional[str]
+    last_error: Optional[str]
+
+class ProviderDiagnosticsResponse(BaseModel):
+    providers: List[ProviderStatus]
+    unavailable_tickers: List[dict]
+    total_unavailable: int
+
 class StockSummary(BaseModel):
     ticker: str
     name: str

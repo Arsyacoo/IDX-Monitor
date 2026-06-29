@@ -2,7 +2,7 @@
 
 import requests
 
-from cache import utc_now_iso
+from cache import record_provider_failure, record_provider_success, utc_now_iso
 from config import YAHOO_CHART_URL
 from services.providers.retry import retry_with_backoff
 
@@ -18,7 +18,12 @@ def fetch_yahoo_chart(ticker_jk, period):
         response.raise_for_status()
         return response.json()
 
-    payload = retry_with_backoff(request_chart)
+    try:
+        payload = retry_with_backoff(request_chart)
+        record_provider_success("yahoo_chart")
+    except Exception as error:
+        record_provider_failure("yahoo_chart", error)
+        raise
     result = payload.get("chart", {}).get("result") or []
     if not result:
         return None

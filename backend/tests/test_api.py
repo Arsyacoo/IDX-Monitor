@@ -38,6 +38,17 @@ def test_health_endpoint_returns_cache_status():
     assert 'unavailable_tickers_count' in payload
 
 
+def test_provider_status_endpoint_returns_diagnostics():
+    response = client.get('/api/status/providers')
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert 'providers' in payload
+    assert 'unavailable_tickers' in payload
+    assert 'total_unavailable' in payload
+    assert {provider['key'] for provider in payload['providers']} == {'yahoo_chart', 'yfinance'}
+
+
 def test_unavailable_ticker_helpers_track_and_clear_failures():
     ticker = 'FAIL.JK'
     clear_unavailable_ticker(ticker)

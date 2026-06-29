@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from models import HealthResponse
-from services.market_data import get_health_data
+from models import HealthResponse, ProviderDiagnosticsResponse
+from services.market_data import get_health_data, get_provider_diagnostics_data
 
 router = APIRouter()
 
@@ -9,6 +9,11 @@ router = APIRouter()
 @router.get("/api/health", response_model=HealthResponse)
 def get_health():
     return get_health_data()
+
+
+@router.get("/api/status/providers", response_model=ProviderDiagnosticsResponse)
+def get_provider_status():
+    return get_provider_diagnostics_data()
 
 
 @router.get("/")

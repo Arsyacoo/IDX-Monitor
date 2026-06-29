@@ -30,3 +30,8 @@ export const fetchHealth = async () => {
     const response = await api.get('/health');
     return response.data;
 };
+
+export const fetchProviderDiagnostics = async () => {
+    const response = await api.get('/status/providers');
+    return response.data;
+};

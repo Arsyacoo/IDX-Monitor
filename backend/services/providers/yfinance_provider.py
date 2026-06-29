@@ -1,6 +1,6 @@
 ﻿import yfinance as yf
 
-from cache import utc_now_iso
+from cache import record_provider_failure, record_provider_success, utc_now_iso
 from services.providers.retry import retry_with_backoff
 
 
@@ -24,7 +24,12 @@ def fetch_yfinance_history(ticker_jk, period, current=0.0, change_pct=0.0):
             })
         return resolved_current, resolved_change, history
 
-    resolved_current, resolved_change, history = retry_with_backoff(request_history)
+    try:
+        resolved_current, resolved_change, history = retry_with_backoff(request_history)
+        record_provider_success("yfinance")
+    except Exception as error:
+        record_provider_failure("yfinance", error)
+        raise
     if not history:
         return None
 
@@ -43,4 +48,10 @@ def fetch_yfinance_history(ticker_jk, period, current=0.0, change_pct=0.0):
 
 
 def fetch_yfinance_batch(tickers_str):
-    return retry_with_backoff(lambda: yf.Tickers(tickers_str))
+    try:
+        data = retry_with_backoff(lambda: yf.Tickers(tickers_str))
+        record_provider_success("yfinance")
+        return data
+    except Exception as error:
+        record_provider_failure("yfinance", error)
+        raise

@@ -323,6 +323,16 @@ const SettingsPanel = ({ settings, onChange, onClose }) => (
 const WatchlistBoard = ({ stocks, watchlist, onOpenTicker, onUpdateWatchlistItem }) => {
   if (watchlist.length === 0) return null;
 
+  const enrichedWatchlist = watchlist.map((item) => {
+    const stock = stocks.find((stockItem) => stockItem.ticker === item.ticker);
+    const targetStatus = getTargetStatus(stock, item);
+    return { item, stock, targetStatus };
+  }).sort((firstItem, secondItem) => {
+    if (firstItem.targetStatus?.isNearTarget && !secondItem.targetStatus?.isNearTarget) return -1;
+    if (!firstItem.targetStatus?.isNearTarget && secondItem.targetStatus?.isNearTarget) return 1;
+    return Math.abs(firstItem.targetStatus?.distancePercent ?? 999) - Math.abs(secondItem.targetStatus?.distancePercent ?? 999);
+  });
+
   return (
     <section className="max-w-7xl mx-auto mb-6 rounded-xl border border-slate-700 bg-idx-card p-4" aria-label="Watchlist board">
       <div className="mb-3 flex items-center justify-between">
@@ -333,9 +343,7 @@ const WatchlistBoard = ({ stocks, watchlist, onOpenTicker, onUpdateWatchlistItem
         <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">{watchlist.length} saved</span>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {watchlist.slice(0, 8).map((item) => {
-          const stock = stocks.find((stockItem) => stockItem.ticker === item.ticker);
-          const targetStatus = getTargetStatus(stock, item);
+        {enrichedWatchlist.slice(0, 8).map(({ item, stock, targetStatus }) => {
           return (
             <div key={item.ticker} className={`rounded-lg border bg-slate-800/70 p-3 transition-colors ${targetStatus?.isNearTarget ? 'border-yellow-500/70' : 'border-slate-700'}`}>
               <button type="button" onClick={() => onOpenTicker(item.ticker)} className="w-full text-left focus:outline-none focus:ring-2 focus:ring-idx-accent rounded-md">
@@ -560,11 +568,20 @@ function Dashboard() {
 
   const stocks = useMemo(() => stockData?.data || [], [stockData]);
   const watchlistTickers = useMemo(() => watchlist.map((item) => item.ticker), [watchlist]);
+  const watchlistByTicker = useMemo(() => new Map(watchlist.map((item) => [item.ticker, item])), [watchlist]);
+  const stocksWithWatchlistStatus = useMemo(() => stocks.map((stock) => {
+    const watchlistItem = watchlistByTicker.get(stock.ticker);
+    return {
+      ...stock,
+      watchlistTargetStatus: watchlistItem ? getTargetStatus(stock, watchlistItem) : null,
+    };
+  }), [stocks, watchlistByTicker]);
+  const nearTargetCount = useMemo(() => stocksWithWatchlistStatus.filter((stock) => stock.watchlistTargetStatus?.isNearTarget).length, [stocksWithWatchlistStatus]);
   const totalPages = stockData?.total_pages || 1;
   const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString('id-ID') : '-';
   const visibleStocks = useMemo(() => (
-    showWatchlistOnly ? stocks.filter((stock) => watchlistTickers.includes(stock.ticker)) : stocks
-  ), [showWatchlistOnly, stocks, watchlistTickers]);
+    showWatchlistOnly ? stocksWithWatchlistStatus.filter((stock) => watchlistTickers.includes(stock.ticker)) : stocksWithWatchlistStatus
+  ), [showWatchlistOnly, stocksWithWatchlistStatus, watchlistTickers]);
   const marketSummary = useMemo(() => {
     const pageGainers = stocks.filter((stock) => stock.change_percent > 0).length;
     const pageLosers = stocks.filter((stock) => stock.change_percent < 0).length;
@@ -718,7 +735,7 @@ function Dashboard() {
               <SummaryCard label="Loaded" value={marketSummary.loaded} helper={marketSummary.isMarketWide ? 'Cached market-wide' : 'Stocks on this page'} icon={Activity} tone="blue" />
               <SummaryCard label="Gainers" value={marketSummary.gainers} helper={`${marketSummary.unchanged} unchanged`} icon={TrendingUp} tone="green" />
               <SummaryCard label="Losers" value={marketSummary.losers} helper="Negative movers" icon={TrendingDown} tone="red" />
-              <SummaryCard label="Top Volume" value={marketSummary.topVolume.ticker} helper={formatCompact(marketSummary.topVolume.volume)} icon={BarChart3} tone="yellow" />
+              <SummaryCard label="Near Target" value={nearTargetCount} helper="Watchlist alerts on this page" icon={BarChart3} tone="yellow" />
             </section>
 
             <main className="max-w-7xl mx-auto grid grid-cols-1 gap-6 lg:grid-cols-12 lg:min-h-[680px]">

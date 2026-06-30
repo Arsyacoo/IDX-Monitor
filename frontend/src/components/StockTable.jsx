@@ -57,6 +57,7 @@ const StockTable = ({
     const visibleStocks = useMemo(() => {
         const filteredStocks = stocks.filter((stock) => {
             if (filterBy === 'watchlist') return watchlist.includes(stock.ticker);
+            if (filterBy === 'near-target') return stock.watchlistTargetStatus?.isNearTarget;
             if (filterBy === 'gainers') return stock.change_percent > 0;
             if (filterBy === 'losers') return stock.change_percent < 0;
             if (filterBy === 'top-volume') return Number(stock.volume || 0) > 0;
@@ -92,6 +93,9 @@ const StockTable = ({
         }
         if (filterBy === 'losers') {
             setSortBy('change-asc');
+        }
+        if (filterBy === 'near-target') {
+            setSortBy('ticker');
         }
     }, [filterBy]);
 
@@ -145,6 +149,7 @@ const StockTable = ({
                     >
                         <option value="all">Semua saham</option>
                         <option value="watchlist">Watchlist</option>
+                        <option value="near-target">Near Target</option>
                         <option value="gainers">Top Gainers</option>
                         <option value="losers">Top Losers</option>
                         <option value="top-volume">Top Volume</option>
@@ -176,6 +181,7 @@ const StockTable = ({
                     <tbody className="divide-y divide-slate-700">
                         {visibleStocks.map((stock) => {
                             const isFavorite = watchlist.includes(stock.ticker);
+                            const targetStatus = stock.watchlistTargetStatus;
 
                             return (
                                 <tr
@@ -197,8 +203,20 @@ const StockTable = ({
                                                 <Star size={16} fill={isFavorite ? 'currentColor' : 'none'} />
                                             </button>
                                             <div>
-                                                <div className="font-bold text-white mb-0.5">{stock.ticker}</div>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="font-bold text-white">{stock.ticker}</span>
+                                                    {targetStatus?.isNearTarget && (
+                                                        <span className="rounded-full border border-yellow-500/50 bg-yellow-500/10 px-2 py-0.5 text-[10px] font-bold uppercase text-yellow-300">
+                                                            Near Target
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <div className="text-xs text-gray-400 truncate max-w-[100px]">{stock.name}</div>
+                                                {targetStatus && (
+                                                    <div className={`mt-1 text-[11px] ${targetStatus.isNearTarget ? 'text-yellow-300' : 'text-slate-500'}`}>
+                                                        {targetStatus.label}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </td>

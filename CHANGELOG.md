@@ -13,6 +13,8 @@
 - Technical indicators for stock details: MA20, MA50, RSI 14, and trend label.
 - Smart watchlist metadata with notes, target prices, and alert thresholds.
 - Provider diagnostics endpoint and dashboard panel for provider counters and skipped tickers.
+- Stock detail insight cards explain trend, MA20 position, and RSI condition in plain language.
+- Watchlist near-target UX adds table badges, filtering, and prioritizes target alerts on the board.
 
 ### Changed
 - Backend models, cache state, and runtime config are split into dedicated modules.

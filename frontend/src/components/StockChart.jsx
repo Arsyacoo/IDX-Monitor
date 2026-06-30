@@ -64,6 +64,56 @@ const indicatorTone = (trendLabel) => ({
     Sideways: 'text-yellow-300 border-yellow-800/60 bg-yellow-950/20',
 }[trendLabel] || 'text-slate-300 border-slate-700 bg-slate-800/50');
 
+const getInsightTone = (tone) => ({
+    positive: 'border-emerald-800/60 bg-emerald-950/20 text-emerald-200',
+    warning: 'border-yellow-800/60 bg-yellow-950/20 text-yellow-100',
+    negative: 'border-red-800/60 bg-red-950/20 text-red-100',
+    neutral: 'border-slate-700 bg-slate-800/50 text-slate-200',
+}[tone] || 'border-slate-700 bg-slate-800/50 text-slate-200');
+
+const buildTechnicalInsights = (stockDetail, indicators) => {
+    const insights = [];
+    const lastPrice = stockDetail.last_price || 0;
+
+    if (indicators.trend_label) {
+        insights.push({
+            title: `Trend saat ini ${indicators.trend_label}`,
+            description: indicators.trend_label === 'Bullish'
+                ? 'Harga berada dalam struktur naik berdasarkan moving average.'
+                : indicators.trend_label === 'Bearish'
+                    ? 'Harga berada dalam tekanan turun berdasarkan moving average.'
+                    : indicators.trend_label === 'Sideways'
+                        ? 'Harga masih bergerak campuran dan belum memberi arah kuat.'
+                        : 'Data histori belum cukup untuk membaca trend kuat.',
+            tone: indicators.trend_label === 'Bullish' ? 'positive' : indicators.trend_label === 'Bearish' ? 'negative' : 'neutral',
+        });
+    }
+
+    if (indicators.ma20) {
+        const isAboveMa20 = lastPrice >= indicators.ma20;
+        insights.push({
+            title: isAboveMa20 ? 'Harga di atas MA20' : 'Harga di bawah MA20',
+            description: isAboveMa20 ? 'Momentum jangka pendek masih relatif kuat.' : 'Momentum jangka pendek perlu diwaspadai.',
+            tone: isAboveMa20 ? 'positive' : 'warning',
+        });
+    }
+
+    if (indicators.rsi14) {
+        const rsiLabel = indicators.rsi14 >= 70 ? 'RSI overbought' : indicators.rsi14 <= 30 ? 'RSI oversold' : 'RSI neutral';
+        insights.push({
+            title: `${rsiLabel} (${indicators.rsi14.toFixed(2)})`,
+            description: indicators.rsi14 >= 70
+                ? 'Kenaikan sudah cukup panas; potensi koreksi perlu diperhatikan.'
+                : indicators.rsi14 <= 30
+                    ? 'Tekanan jual besar; pantau potensi rebound atau lanjutan turun.'
+                    : 'Momentum belum ekstrem dan masih berada di area seimbang.',
+            tone: indicators.rsi14 >= 70 ? 'warning' : indicators.rsi14 <= 30 ? 'negative' : 'neutral',
+        });
+    }
+
+    return insights.slice(0, 3);
+};
+
 const formatDataSource = (source) => ({
     yahoo_chart: 'Yahoo Chart API',
     history_cache: 'History Cache',
@@ -126,6 +176,7 @@ const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false }) => {
     const periodLow = hasHistory ? Math.min(...stockDetail.history.map((point) => point.price)) : 0;
     const periodChange = firstHistoryPrice ? ((stockDetail.last_price - firstHistoryPrice) / firstHistoryPrice) * 100 : 0;
     const indicators = stockDetail.technical_indicators || {};
+    const technicalInsights = buildTechnicalInsights(stockDetail, indicators);
 
     return (
         <div className={`bg-idx-card rounded-xl shadow-lg border border-slate-700 ${compactMode ? 'p-4' : 'p-6'} h-full flex flex-col`}>
@@ -189,6 +240,26 @@ const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false }) => {
                 <MetricCard label="MA50" value={indicators.ma50 ? formatPrice(indicators.ma50) : '-'} />
                 <MetricCard label="RSI 14" value={indicators.rsi14 ? indicators.rsi14.toFixed(2) : '-'} />
             </div>
+
+            {technicalInsights.length > 0 && (
+                <div className="mb-5 rounded-2xl border border-slate-700 bg-slate-900/60 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                            <div className="text-sm font-bold text-white">Insight Teknis</div>
+                            <div className="text-xs text-slate-500">Ringkasan otomatis dari trend, moving average, dan RSI.</div>
+                        </div>
+                        <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">Beta</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                        {technicalInsights.map((insight) => (
+                            <div key={insight.title} className={`rounded-xl border p-3 ${getInsightTone(insight.tone)}`}>
+                                <div className="text-sm font-semibold">{insight.title}</div>
+                                <p className="mt-1 text-xs leading-relaxed opacity-80">{insight.description}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <div className="flex-1 w-full min-h-[260px] relative">
                 {isFetching && (

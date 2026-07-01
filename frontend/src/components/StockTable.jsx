@@ -305,4 +305,4 @@ const StockTable = ({
     );
 };
 
-export default StockTable;
+export default React.memo(StockTable);

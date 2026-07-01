@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, keepPreviousData } from '@tanstack/react-query';
 import StockTable from './components/StockTable';
 import { fetchHealth, fetchMarketSummary, fetchProviderDiagnostics, fetchStocks } from './api';
@@ -7,7 +7,16 @@ import { Activity, BarChart3, Download, LayoutDashboard, Radar, Clock, RefreshCw
 const StockChart = lazy(() => import('./components/StockChart'));
 const WhaleAlerts = lazy(() => import('./components/WhaleAlerts'));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 15000,
+      gcTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+    },
+  },
+});
 const WATCHLIST_STORAGE_KEY = 'idx-monitor-watchlist';
 const SETTINGS_STORAGE_KEY = 'idx-monitor-settings';
 const DEFAULT_SETTINGS = {
@@ -531,17 +540,17 @@ function Dashboard() {
     enabled: currentView === 'dashboard' && isDebugMode,
   });
 
-  const addToast = (toast) => {
+  const addToast = useCallback((toast) => {
     const id = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
     setToasts((currentToasts) => [...currentToasts, { id, type: 'success', ...toast }]);
     setTimeout(() => {
       setToasts((currentToasts) => currentToasts.filter((item) => item.id !== id));
     }, 4200);
-  };
+  }, []);
 
-  const dismissToast = (id) => {
+  const dismissToast = useCallback((id) => {
     setToasts((currentToasts) => currentToasts.filter((toast) => toast.id !== id));
-  };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(watchlist));
@@ -551,29 +560,29 @@ function Dashboard() {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
   }, [settings]);
 
-  const updateSettings = (nextSettings) => {
+  const updateSettings = useCallback((nextSettings) => {
     setSettings((currentSettings) => ({ ...currentSettings, ...nextSettings }));
-  };
+  }, []);
 
   useEffect(() => {
     if (error) {
       addToast({ type: 'error', title: 'Market data unavailable', message: 'Backend may be offline or still warming up.' });
     }
-  }, [error]);
+  }, [addToast, error]);
 
-  const toggleWatchlist = (ticker) => {
+  const toggleWatchlist = useCallback((ticker) => {
     setWatchlist((currentWatchlist) => {
       const exists = currentWatchlist.some((item) => item.ticker === ticker);
       if (exists) return currentWatchlist.filter((item) => item.ticker !== ticker);
       return [...currentWatchlist, normalizeWatchlistItem(ticker)];
     });
-  };
+  }, []);
 
-  const updateWatchlistItem = (ticker, patch) => {
+  const updateWatchlistItem = useCallback((ticker, patch) => {
     setWatchlist((currentWatchlist) => currentWatchlist.map((item) => (
       item.ticker === ticker ? normalizeWatchlistItem({ ...item, ...patch }) : item
     )));
-  };
+  }, []);
 
   const clearWatchlist = () => {
     setWatchlist([]);
@@ -685,12 +694,12 @@ function Dashboard() {
     };
   }, [marketSummaryData, stocks]);
 
-  const openTickerFromAlert = (ticker) => {
+  const openTickerFromAlert = useCallback((ticker) => {
     setSelectedTicker(ticker);
     setCurrentView('dashboard');
     setSearch(ticker);
     setPage(1);
-  };
+  }, []);
 
   const toggleWatchlistMode = () => {
     const nextValue = !showWatchlistOnly;
@@ -856,7 +865,13 @@ function Dashboard() {
 
               <div className="lg:col-span-8 h-full">
                 <Suspense fallback={<PanelFallback label="chart" />}>
-                  <StockChart ticker={selectedTicker} defaultPeriod={settings.defaultChartPeriod} compactMode={settings.compactMode} />
+                  <StockChart
+                    ticker={selectedTicker}
+                    defaultPeriod={settings.defaultChartPeriod}
+                    compactMode={settings.compactMode}
+                    autoRefresh={settings.autoRefresh}
+                    refreshInterval={settings.refreshInterval}
+                  />
                 </Suspense>
               </div>
             </main>

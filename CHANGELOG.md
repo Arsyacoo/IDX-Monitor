@@ -16,6 +16,7 @@
 - Stock detail insight cards explain trend, MA20 position, and RSI condition in plain language.
 - Watchlist near-target UX adds table badges, filtering, and prioritizes target alerts on the board.
 - Sector/category layer adds inferred sector classification, sector overview cards, and table sector filtering.
+- Performance tuning adds query cache defaults, reduced chart polling, stable callbacks, and memoized chart/table components.
 
 ### Changed
 - Backend models, cache state, and runtime config are split into dedicated modules.

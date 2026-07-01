@@ -128,7 +128,7 @@ const formatUpdatedAt = (value) => {
     return new Date(value).toLocaleTimeString('id-ID');
 };
 
-const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false }) => {
+const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false, autoRefresh = true, refreshInterval = 60000 }) => {
     const [period, setPeriod] = useState(defaultPeriod);
 
     useEffect(() => {
@@ -138,7 +138,7 @@ const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false }) => {
         queryKey: ['stock', ticker, period],
         queryFn: () => fetchStockHistory(ticker, period),
         enabled: !!ticker,
-        refetchInterval: 60000,
+        refetchInterval: autoRefresh ? Math.max(refreshInterval, 60000) : false,
     });
 
     if (!ticker) {
@@ -323,4 +323,4 @@ const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false }) => {
     );
 };
 
-export default StockChart;
+export default React.memo(StockChart);

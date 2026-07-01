@@ -34,6 +34,7 @@ const StockTable = ({
     const [localSearch, setLocalSearch] = useState(search);
     const [sortBy, setSortBy] = useState(defaultSort);
     const [filterBy, setFilterBy] = useState('all');
+    const [sectorFilter, setSectorFilter] = useState('all');
 
     useEffect(() => {
         setLocalSearch(search);
@@ -56,6 +57,7 @@ const StockTable = ({
 
     const visibleStocks = useMemo(() => {
         const filteredStocks = stocks.filter((stock) => {
+            if (sectorFilter !== 'all' && stock.sector !== sectorFilter) return false;
             if (filterBy === 'watchlist') return watchlist.includes(stock.ticker);
             if (filterBy === 'near-target') return stock.watchlistTargetStatus?.isNearTarget;
             if (filterBy === 'gainers') return stock.change_percent > 0;
@@ -71,7 +73,11 @@ const StockTable = ({
             if (sortBy === 'change-asc') return firstStock.change_percent - secondStock.change_percent;
             return firstStock.ticker.localeCompare(secondStock.ticker);
         });
-    }, [stocks, filterBy, sortBy, watchlist]);
+    }, [stocks, filterBy, sectorFilter, sortBy, watchlist]);
+
+    const sectorOptions = useMemo(() => (
+        [...new Set(stocks.map((stock) => stock.sector).filter(Boolean))].sort()
+    ), [stocks]);
 
     const handleSearchKeyDown = (event) => {
         if (event.key === 'Escape') {
@@ -141,7 +147,7 @@ const StockTable = ({
                     <span>Esc clears search</span>
                 </div>
 
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     <select
                         value={filterBy}
                         onChange={(event) => setFilterBy(event.target.value)}
@@ -153,6 +159,14 @@ const StockTable = ({
                         <option value="gainers">Top Gainers</option>
                         <option value="losers">Top Losers</option>
                         <option value="top-volume">Top Volume</option>
+                    </select>
+                    <select
+                        value={sectorFilter}
+                        onChange={(event) => setSectorFilter(event.target.value)}
+                        className="bg-slate-800 border border-slate-700 text-sm text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-idx-accent"
+                    >
+                        <option value="all">Semua sektor</option>
+                        {sectorOptions.map((sector) => <option key={sector} value={sector}>{sector}</option>)}
                     </select>
                     <select
                         value={sortBy}
@@ -212,6 +226,11 @@ const StockTable = ({
                                                     )}
                                                 </div>
                                                 <div className="text-xs text-gray-400 truncate max-w-[100px]">{stock.name}</div>
+                                                {stock.sector && (
+                                                    <div className="mt-1 inline-flex rounded-full border border-slate-700 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">
+                                                        {stock.sector}
+                                                    </div>
+                                                )}
                                                 {targetStatus && (
                                                     <div className={`mt-1 text-[11px] ${targetStatus.isNearTarget ? 'text-yellow-300' : 'text-slate-500'}`}>
                                                         {targetStatus.label}

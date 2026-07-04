@@ -18,6 +18,7 @@
 - Sector/category layer adds inferred sector classification, sector overview cards, and table sector filtering.
 - Performance tuning adds query cache defaults, reduced chart polling, stable callbacks, and memoized chart/table components.
 - Release readiness notes document public/debug modes, API endpoints, local validation, and known data limitations.
+- Sector accuracy upgrade moves sector classification to the backend with explicit ticker overrides and centralized fallback rules.
 
 ### Changed
 - Backend models, cache state, and runtime config are split into dedicated modules.

@@ -143,7 +143,7 @@ run_app.bat            # launcher lokal Windows
 ## Catatan dan Batasan Data
 
 - Data harga dan histori bergantung pada provider eksternal, sehingga beberapa ticker dapat terlambat atau sementara tidak tersedia.
-- Klasifikasi sektor saat ini bersifat inferred dari nama emiten, bukan data sektor resmi IDX.
+- Klasifikasi sektor menggunakan mapping eksplisit backend untuk ticker utama dan fallback rule terpusat untuk emiten lain; tetap bukan data sektor resmi IDX.
 - Technical indicators bersifat informatif dan bukan rekomendasi beli/jual.
 - Watchlist disimpan di localStorage browser, sehingga data berbeda antar perangkat/browser.
 - Background worker membutuhkan waktu untuk mengisi cache semua ticker saat aplikasi baru dinyalakan.

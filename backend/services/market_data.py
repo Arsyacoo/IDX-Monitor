@@ -27,6 +27,7 @@ from config import (
 )
 from services.providers.yahoo_chart import fetch_yahoo_chart
 from services.providers.yfinance_provider import fetch_yfinance_batch, fetch_yfinance_history
+from services.sector_classifier import classify_sector
 from services.technical_indicators import build_enriched_history, calculate_technical_indicators
 
 STOCKS_DB = []
@@ -45,6 +46,7 @@ except Exception as e:
 
 def build_stock_summary(stock):
     ticker_key = f"{stock['ticker']}.JK"
+    sector, sector_source = classify_sector(stock)
     cache_data = PRICE_CACHE.get(ticker_key, {
         "last_price": 0.0,
         "change_percent": 0.0,
@@ -54,6 +56,8 @@ def build_stock_summary(stock):
     return {
         "ticker": stock["ticker"],
         "name": stock["name"],
+        "sector": sector,
+        "sector_source": sector_source,
         "last_price": cache_data["last_price"],
         "change_percent": round(cache_data["change_percent"], 2),
         "volume": int(cache_data.get("volume", 0) or 0),
@@ -272,6 +276,7 @@ async def get_stock_detail_data(ticker: str, period: str = "1mo"):
 
     stock_info = next((stock for stock in STOCKS_DB if stock["ticker"] == ticker.upper()), None)
     name = stock_info["name"] if stock_info else "Unknown Company"
+    sector, sector_source = classify_sector(stock_info or {"ticker": ticker.upper(), "name": name})
     ticker_jk = f"{ticker.upper()}.JK"
     cache_key = f"{ticker_jk}:{period}"
     cached_history = HISTORY_CACHE.get(cache_key)
@@ -348,6 +353,8 @@ async def get_stock_detail_data(ticker: str, period: str = "1mo"):
     return {
         "ticker": ticker.upper(),
         "name": name,
+        "sector": sector,
+        "sector_source": sector_source,
         "last_price": current if current else 0.0,
         "change_percent": round(change_pct, 2),
         "period": period,

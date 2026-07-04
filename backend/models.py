@@ -40,6 +40,8 @@ class ProviderDiagnosticsResponse(BaseModel):
 class StockSummary(BaseModel):
     ticker: str
     name: str
+    sector: str
+    sector_source: str
     last_price: float
     change_percent: float
     volume: int
@@ -67,6 +69,8 @@ class TechnicalIndicators(BaseModel):
 class StockDetail(BaseModel):
     ticker: str
     name: str
+    sector: str
+    sector_source: str
     last_price: float
     change_percent: float
     period: str

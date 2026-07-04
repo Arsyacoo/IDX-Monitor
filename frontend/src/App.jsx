@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, keepPreviousData } from '@tanstack/react-query';
 import StockTable from './components/StockTable';
 import { fetchHealth, fetchMarketSummary, fetchProviderDiagnostics, fetchStocks } from './api';
@@ -80,24 +80,6 @@ const getTargetStatus = (stock, item) => {
     isNearTarget,
     label: isNearTarget ? 'Near target' : `${distancePercent > 0 ? '+' : ''}${distancePercent.toFixed(1)}% to target`,
   };
-};
-
-const SECTOR_RULES = [
-  { sector: 'Financials', keywords: ['bank', 'asuransi', 'insurance', 'finance', 'sekuritas', 'multifinance', 'modal ventura'] },
-  { sector: 'Energy', keywords: ['adaro', 'bayan', 'bukit asam', 'coal', 'batubara', 'energi', 'energy', 'minyak', 'gas', 'petroleum'] },
-  { sector: 'Consumer', keywords: ['food', 'indofood', 'mayora', 'unilever', 'sido', 'consumer', 'ritel', 'retail', 'mart', 'supermarket'] },
-  { sector: 'Healthcare', keywords: ['health', 'sehat', 'siloam', 'medikal', 'medical', 'farmasi', 'pharma', 'kimia farma', 'kalbe', 'hospital'] },
-  { sector: 'Technology', keywords: ['technology', 'teknologi', 'digital', 'data', 'telekomunikasi', 'telkom', 'media', 'internet', 'software'] },
-  { sector: 'Materials', keywords: ['steel', 'baja', 'semen', 'cement', 'kimia', 'chemical', 'mineral', 'metal', 'emas', 'gold', 'tambang'] },
-  { sector: 'Industrials', keywords: ['astra', 'alat berat', 'heavy equipment', 'konstruksi', 'construction', 'logistik', 'logistic', 'transportasi', 'shipping'] },
-  { sector: 'Property', keywords: ['property', 'properti', 'realty', 'estate', 'land', 'kawasan industri', 'ciputra', 'summarecon'] },
-  { sector: 'Infrastructure', keywords: ['tower', 'jalan tol', 'toll', 'infrastructure', 'infrastruktur', 'utility', 'listrik', 'power'] },
-];
-
-const classifySector = (stock) => {
-  const haystack = `${stock.ticker} ${stock.name}`.toLowerCase();
-  const matchedRule = SECTOR_RULES.find((rule) => rule.keywords.some((keyword) => haystack.includes(keyword)));
-  return matchedRule?.sector || 'Other';
 };
 
 const HealthBanner = ({ health, isLoading, isError, isDebug }) => {
@@ -197,7 +179,7 @@ const HealthBanner = ({ health, isLoading, isError, isDebug }) => {
           <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
             <div className="text-slate-500">Current Batch</div>
             <div className="mt-1 text-lg font-bold text-white">{health?.current_batch_size ?? 0}</div>
-            <div className="mt-1 text-slate-500">{batchRange} • {currentTicker}</div>
+            <div className="mt-1 text-slate-500">{batchRange} â€¢ {currentTicker}</div>
           </div>
         </div>
       </div>
@@ -443,7 +425,7 @@ const SectorBoard = ({ sectorSummary }) => {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="font-semibold text-white">{summary.sector}</div>
-                <div className="mt-1 text-xs text-slate-500">{summary.count} tickers • {formatCompact(summary.totalVolume)} volume</div>
+                <div className="mt-1 text-xs text-slate-500">{summary.count} tickers â€¢ {formatCompact(summary.totalVolume)} volume</div>
               </div>
               <span className={`font-mono text-sm font-bold ${summary.averageChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {summary.averageChange >= 0 ? '+' : ''}{summary.averageChange.toFixed(2)}%
@@ -638,7 +620,8 @@ function Dashboard() {
     const watchlistItem = watchlistByTicker.get(stock.ticker);
     return {
       ...stock,
-      sector: classifySector(stock),
+      sector: stock.sector || 'Other',
+      sectorSource: stock.sector_source || 'unknown',
       watchlistTargetStatus: watchlistItem ? getTargetStatus(stock, watchlistItem) : null,
     };
   }), [stocks, watchlistByTicker]);
@@ -832,7 +815,7 @@ function Dashboard() {
               <SummaryCard label="Gainers" value={marketSummary.gainers} helper={`${marketSummary.unchanged} unchanged`} icon={TrendingUp} tone="green" />
               <SummaryCard label="Losers" value={marketSummary.losers} helper="Negative movers" icon={TrendingDown} tone="red" />
               <SummaryCard label="Near Target" value={nearTargetCount} helper="Watchlist alerts on this page" icon={BarChart3} tone="yellow" />
-              <SummaryCard label="Top Sector" value={leadingSector.sector} helper={`${leadingSector.count} tickers • ${leadingSector.averageChange?.toFixed(2) ?? '0.00'}% avg`} icon={BarChart3} tone="yellow" />
+              <SummaryCard label="Top Sector" value={leadingSector.sector} helper={`${leadingSector.count} tickers â€¢ ${leadingSector.averageChange?.toFixed(2) ?? '0.00'}% avg`} icon={BarChart3} tone="yellow" />
             </section>
 
             <main className="max-w-7xl mx-auto grid grid-cols-1 gap-6 lg:grid-cols-12 lg:min-h-[680px]">
@@ -895,3 +878,4 @@ function App() {
 }
 
 export default App;
+

@@ -131,6 +131,8 @@ def test_stock_summary_includes_volume_from_cache():
     assert summary == {
         'ticker': 'TEST',
         'name': 'Test Equity',
+        'sector': 'Other',
+        'sector_source': 'unknown',
         'last_price': 1234.0,
         'change_percent': 2.35,
         'volume': 987654,
@@ -164,6 +166,13 @@ def test_technical_indicators_identify_bullish_trend():
     assert indicators['period_points'] == 60
 
 
+def test_stock_summary_uses_sector_mapping():
+    summary = build_stock_summary({'ticker': 'BBCA', 'name': 'Bank Central Asia Tbk'})
+
+    assert summary['sector'] == 'Financials'
+    assert summary['sector_source'] == 'mapping'
+
+
 def test_stock_detail_can_return_history_cache_without_external_fetch():
     cache_key = 'TEST.JK:1mo'
     HISTORY_CACHE[cache_key] = {
@@ -185,6 +194,8 @@ def test_stock_detail_can_return_history_cache_without_external_fetch():
     assert response.status_code == 200
     payload = response.json()
     assert payload['ticker'] == 'TEST'
+    assert payload['sector'] == 'Other'
+    assert payload['sector_source'] == 'unknown'
     assert payload['last_price'] == 1000.0
     assert payload['data_source'] == 'history_cache'
     assert payload['last_updated_at'] is not None

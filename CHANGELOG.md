@@ -17,6 +17,7 @@
 - Watchlist near-target UX adds table badges, filtering, and prioritizes target alerts on the board.
 - Sector/category layer adds inferred sector classification, sector overview cards, and table sector filtering.
 - Performance tuning adds query cache defaults, reduced chart polling, stable callbacks, and memoized chart/table components.
+- Release readiness notes document public/debug modes, API endpoints, local validation, and known data limitations.
 
 ### Changed
 - Backend models, cache state, and runtime config are split into dedicated modules.
@@ -27,6 +28,7 @@
 - Yahoo Chart and yfinance providers now record success/failure health signals.
 - Public dashboard now shows simplified market data status, while technical diagnostics require `?debug=true`.
 - Public dashboard hero, market status cards, summary cards, and table empty states are polished for a cleaner product feel.
+- Environment examples now include clearer local-development guidance.
 
 ### Removed
 - Legacy yfinance debug scripts that are replaced by provider modules and tests.

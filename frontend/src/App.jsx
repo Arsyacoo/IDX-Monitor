@@ -206,7 +206,7 @@ const HealthBanner = ({ health, isLoading, isError, isDebug }) => {
           <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-3">
             <div className="text-slate-500">Current Batch</div>
             <div className="mt-1 text-lg font-bold text-white">{health?.current_batch_size ?? 0}</div>
-            <div className="mt-1 text-slate-500">{batchRange} â€¢ {currentTicker}</div>
+            <div className="mt-1 text-slate-500">{batchRange} - {currentTicker}</div>
           </div>
         </div>
       </div>
@@ -485,7 +485,7 @@ const SectorBoard = ({ sectorSummary }) => {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="font-semibold text-white">{summary.sector}</div>
-                <div className="mt-1 text-xs text-slate-500">{summary.count} tickers â€¢ {formatCompact(summary.totalVolume)} volume</div>
+                <div className="mt-1 text-xs text-slate-500">{summary.count} tickers - {formatCompact(summary.totalVolume)} volume</div>
               </div>
               <span className={`font-mono text-sm font-bold ${summary.averageChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {summary.averageChange >= 0 ? '+' : ''}{summary.averageChange.toFixed(2)}%
@@ -891,8 +891,8 @@ function Dashboard() {
               <SummaryCard label="Gainers" value={marketSummary.gainers} helper={`${marketSummary.unchanged} unchanged`} icon={TrendingUp} tone="green" />
               <SummaryCard label="Losers" value={marketSummary.losers} helper="Negative movers" icon={TrendingDown} tone="red" />
               <SummaryCard label="Near Target" value={nearTargetCount} helper="Watchlist alerts on this page" icon={BarChart3} tone="yellow" />
-              <SummaryCard label="Portfolio P/L" value={`${portfolioSummary.unrealizedPnL >= 0 ? '+' : ''}${formatCompact(portfolioSummary.unrealizedPnL)}`} helper={`${portfolioSummary.positions} positions • ${portfolioSummary.unrealizedPnLPercent.toFixed(2)}%`} icon={Activity} tone={portfolioSummary.unrealizedPnL >= 0 ? 'green' : 'red'} />
-              <SummaryCard label="Top Sector" value={leadingSector.sector} helper={`${leadingSector.count} tickers â€¢ ${leadingSector.averageChange?.toFixed(2) ?? '0.00'}% avg`} icon={BarChart3} tone="yellow" />
+              <SummaryCard label="Portfolio P/L" value={`${portfolioSummary.unrealizedPnL >= 0 ? '+' : ''}${formatCompact(portfolioSummary.unrealizedPnL)}`} helper={`${portfolioSummary.positions} positions - ${portfolioSummary.unrealizedPnLPercent.toFixed(2)}%`} icon={Activity} tone={portfolioSummary.unrealizedPnL >= 0 ? 'green' : 'red'} />
+              <SummaryCard label="Top Sector" value={leadingSector.sector} helper={`${leadingSector.count} tickers - ${leadingSector.averageChange?.toFixed(2) ?? '0.00'}% avg`} icon={BarChart3} tone="yellow" />
             </section>
 
             <main className="max-w-7xl mx-auto grid grid-cols-1 gap-6 lg:grid-cols-12 lg:min-h-[680px]">

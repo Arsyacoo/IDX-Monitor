@@ -9,7 +9,7 @@
 - **Technical Insights**: MA20, MA50, RSI 14, trend label, dan insight otomatis yang mudah dibaca.
 - **Sector Overview**: klasifikasi sektor berbasis nama emiten, ringkasan volume, rata-rata perubahan, gainers, dan losers.
 - **Whale Alerts**: deteksi lonjakan volume dan perubahan harga untuk membantu menemukan pergerakan pasar yang tidak biasa.
-- **Smart Watchlist**: simpan ticker favorit, note, target price, alert threshold, badge `Near Target`, serta import/export JSON.
+- **Smart Watchlist & Portfolio**: simpan ticker favorit, note, target price, alert threshold, lots, average price, badge `Near Target`, unrealized P/L, serta import/export JSON.
 - **Public Market Status**: status data publik yang sederhana seperti `Data sedang diperbarui`, `Terakhir diperbarui`, dan `Market data healthy`.
 - **Debug Diagnostics**: diagnostics teknis provider dan cache tersedia hanya lewat `?debug=true`.
 
@@ -163,3 +163,4 @@ Sebelum membagikan project atau mengambil screenshot terbaru:
 ---
 
 Dibuat oleh [Arsyacoo](https://github.com/Arsyacoo).
+

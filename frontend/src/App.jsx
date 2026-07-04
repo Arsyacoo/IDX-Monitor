@@ -50,6 +50,8 @@ const normalizeWatchlistItem = (item) => {
       note: '',
       targetPrice: '',
       alertThreshold: 5,
+      lots: '',
+      averagePrice: '',
     };
   }
 
@@ -58,6 +60,8 @@ const normalizeWatchlistItem = (item) => {
     note: String(item?.note || ''),
     targetPrice: item?.targetPrice ?? '',
     alertThreshold: Number(item?.alertThreshold ?? 5),
+    lots: item?.lots ?? '',
+    averagePrice: item?.averagePrice ?? '',
   };
 };
 
@@ -79,6 +83,29 @@ const getTargetStatus = (stock, item) => {
     distancePercent,
     isNearTarget,
     label: isNearTarget ? 'Near target' : `${distancePercent > 0 ? '+' : ''}${distancePercent.toFixed(1)}% to target`,
+  };
+};
+
+const getPortfolioPosition = (stock, item) => {
+  const lots = Number(item.lots || 0);
+  const averagePrice = Number(item.averagePrice || 0);
+  const lastPrice = Number(stock?.last_price || 0);
+  if (!lots || !averagePrice || !lastPrice) return null;
+
+  const shares = lots * 100;
+  const investedValue = shares * averagePrice;
+  const marketValue = shares * lastPrice;
+  const unrealizedPnL = marketValue - investedValue;
+  const unrealizedPnLPercent = investedValue ? (unrealizedPnL / investedValue) * 100 : 0;
+
+  return {
+    lots,
+    averagePrice,
+    shares,
+    investedValue,
+    marketValue,
+    unrealizedPnL,
+    unrealizedPnLPercent,
   };
 };
 
@@ -335,7 +362,8 @@ const WatchlistBoard = ({ stocks, watchlist, onOpenTicker, onUpdateWatchlistItem
   const enrichedWatchlist = watchlist.map((item) => {
     const stock = stocks.find((stockItem) => stockItem.ticker === item.ticker);
     const targetStatus = getTargetStatus(stock, item);
-    return { item, stock, targetStatus };
+    const portfolioPosition = getPortfolioPosition(stock, item);
+    return { item, stock, targetStatus, portfolioPosition };
   }).sort((firstItem, secondItem) => {
     if (firstItem.targetStatus?.isNearTarget && !secondItem.targetStatus?.isNearTarget) return -1;
     if (!firstItem.targetStatus?.isNearTarget && secondItem.targetStatus?.isNearTarget) return 1;
@@ -352,7 +380,7 @@ const WatchlistBoard = ({ stocks, watchlist, onOpenTicker, onUpdateWatchlistItem
         <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">{watchlist.length} saved</span>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {enrichedWatchlist.slice(0, 8).map(({ item, stock, targetStatus }) => {
+        {enrichedWatchlist.slice(0, 8).map(({ item, stock, targetStatus, portfolioPosition }) => {
           return (
             <div key={item.ticker} className={`rounded-lg border bg-slate-800/70 p-3 transition-colors ${targetStatus?.isNearTarget ? 'border-yellow-500/70' : 'border-slate-700'}`}>
               <button type="button" onClick={() => onOpenTicker(item.ticker)} className="w-full text-left focus:outline-none focus:ring-2 focus:ring-idx-accent rounded-md">
@@ -398,6 +426,38 @@ const WatchlistBoard = ({ stocks, watchlist, onOpenTicker, onUpdateWatchlistItem
                 <div className={`text-xs ${targetStatus?.isNearTarget ? 'text-yellow-300' : 'text-slate-500'}`}>
                   {targetStatus ? targetStatus.label : 'Set target price to enable alert'}
                 </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    value={item.lots}
+                    onChange={(event) => onUpdateWatchlistItem(item.ticker, { lots: event.target.value })}
+                    placeholder="Lots"
+                    className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-200 placeholder:text-slate-500"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    value={item.averagePrice}
+                    onChange={(event) => onUpdateWatchlistItem(item.ticker, { averagePrice: event.target.value })}
+                    placeholder="Avg price"
+                    className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-200 placeholder:text-slate-500"
+                  />
+                </div>
+                {portfolioPosition ? (
+                  <div className="rounded-md border border-slate-700 bg-slate-900 p-2 text-xs">
+                    <div className="flex justify-between text-slate-400">
+                      <span>Market value</span>
+                      <span className="font-mono text-slate-200">{formatCompact(portfolioPosition.marketValue)}</span>
+                    </div>
+                    <div className={`mt-1 flex justify-between font-semibold ${portfolioPosition.unrealizedPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      <span>Unrealized P/L</span>
+                      <span>{portfolioPosition.unrealizedPnL >= 0 ? '+' : ''}{formatCompact(portfolioPosition.unrealizedPnL)} ({portfolioPosition.unrealizedPnLPercent.toFixed(2)}%)</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500">Isi lots dan avg price untuk aktifkan portfolio P/L.</div>
+                )}
               </div>
             </div>
           );
@@ -623,9 +683,25 @@ function Dashboard() {
       sector: stock.sector || 'Other',
       sectorSource: stock.sector_source || 'unknown',
       watchlistTargetStatus: watchlistItem ? getTargetStatus(stock, watchlistItem) : null,
+      portfolioPosition: watchlistItem ? getPortfolioPosition(stock, watchlistItem) : null,
     };
   }), [stocks, watchlistByTicker]);
   const nearTargetCount = useMemo(() => stocksWithWatchlistStatus.filter((stock) => stock.watchlistTargetStatus?.isNearTarget).length, [stocksWithWatchlistStatus]);
+  const portfolioSummary = useMemo(() => {
+    const positions = stocksWithWatchlistStatus.map((stock) => stock.portfolioPosition).filter(Boolean);
+    const investedValue = positions.reduce((total, position) => total + position.investedValue, 0);
+    const marketValue = positions.reduce((total, position) => total + position.marketValue, 0);
+    const unrealizedPnL = marketValue - investedValue;
+    const unrealizedPnLPercent = investedValue ? (unrealizedPnL / investedValue) * 100 : 0;
+
+    return {
+      positions: positions.length,
+      investedValue,
+      marketValue,
+      unrealizedPnL,
+      unrealizedPnLPercent,
+    };
+  }, [stocksWithWatchlistStatus]);
   const sectorSummary = useMemo(() => {
     const summaryBySector = stocksWithWatchlistStatus.reduce((summary, stock) => {
       const currentSector = stock.sector || 'Other';
@@ -810,11 +886,12 @@ function Dashboard() {
 
             <WatchlistBoard stocks={stocks} watchlist={watchlist} onOpenTicker={openTickerFromAlert} onUpdateWatchlistItem={updateWatchlistItem} />
 
-            <section className="max-w-7xl mx-auto mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <section className="max-w-7xl mx-auto mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
               <SummaryCard label="Loaded" value={marketSummary.loaded} helper={marketSummary.isMarketWide ? 'Cached market-wide' : 'Stocks on this page'} icon={Activity} tone="blue" />
               <SummaryCard label="Gainers" value={marketSummary.gainers} helper={`${marketSummary.unchanged} unchanged`} icon={TrendingUp} tone="green" />
               <SummaryCard label="Losers" value={marketSummary.losers} helper="Negative movers" icon={TrendingDown} tone="red" />
               <SummaryCard label="Near Target" value={nearTargetCount} helper="Watchlist alerts on this page" icon={BarChart3} tone="yellow" />
+              <SummaryCard label="Portfolio P/L" value={`${portfolioSummary.unrealizedPnL >= 0 ? '+' : ''}${formatCompact(portfolioSummary.unrealizedPnL)}`} helper={`${portfolioSummary.positions} positions • ${portfolioSummary.unrealizedPnLPercent.toFixed(2)}%`} icon={Activity} tone={portfolioSummary.unrealizedPnL >= 0 ? 'green' : 'red'} />
               <SummaryCard label="Top Sector" value={leadingSector.sector} helper={`${leadingSector.count} tickers â€¢ ${leadingSector.averageChange?.toFixed(2) ?? '0.00'}% avg`} icon={BarChart3} tone="yellow" />
             </section>
 

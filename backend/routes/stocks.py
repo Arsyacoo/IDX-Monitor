@@ -18,6 +18,11 @@ async def get_stock_detail(ticker: str, period: str = "1mo"):
     return await get_stock_detail_data(ticker=ticker, period=period)
 
 
+@router.post("/api/stock/{ticker}/refresh", response_model=StockDetail)
+async def refresh_stock_detail(ticker: str, period: str = "1mo"):
+    return await get_stock_detail_data(ticker=ticker, period=period, force_refresh=True)
+
+
 @router.get("/api/market-summary", response_model=MarketSummaryResponse)
 def get_market_summary():
     return get_market_summary_data()

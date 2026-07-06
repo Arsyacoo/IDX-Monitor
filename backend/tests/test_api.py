@@ -216,6 +216,35 @@ def test_stock_detail_can_return_history_cache_without_external_fetch():
     HISTORY_CACHE.pop(cache_key, None)
 
 
+def test_refresh_stock_detail_forces_provider_fetch(monkeypatch):
+    cache_key = 'TEST.JK:5d'
+    HISTORY_CACHE.pop(cache_key, None)
+
+    monkeypatch.setattr('services.market_data.fetch_yahoo_chart', lambda ticker, period: {
+        'current': 1250.0,
+        'change_percent': 2.0,
+        'volume': 10000,
+        'open': 1200.0,
+        'high': 1260.0,
+        'low': 1190.0,
+        'previous_close': 1225.0,
+        'history': [{'date': '2026-01-01', 'price': 1225.0}, {'date': '2026-01-02', 'price': 1250.0}],
+        'data_source': 'yahoo_chart',
+        'last_updated_at': utc_now_iso(),
+    })
+
+    response = client.post('/api/stock/TEST/refresh?period=5d')
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['ticker'] == 'TEST'
+    assert payload['data_source'] == 'yahoo_chart'
+    assert payload['last_price'] == 1250.0
+    assert len(payload['history']) == 2
+
+    HISTORY_CACHE.pop(cache_key, None)
+
+
 def test_market_summary_endpoint_returns_lists():
     PRICE_CACHE['AAA.JK'] = {
         'last_price': 100.0,

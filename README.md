@@ -5,7 +5,7 @@
 ## Fitur Utama
 
 - **Market Dashboard**: daftar emiten IDX dengan harga terakhir, perubahan harga, volume, pencarian, pagination, sorting, filter sektor, dan filter watchlist.
-- **Interactive Chart**: grafik historis per ticker dengan periode `5D`, `1M`, `3M`, `6M`, dan `1Y`.
+- **Interactive Chart**: grafik historis per ticker dengan periode `5D`, `1M`, `3M`, `6M`, dan `1Y`, manual refresh, interval polling, dan label kualitas data.
 - **Technical Insights**: MA20, MA50, RSI 14, trend label, dan insight otomatis yang mudah dibaca.
 - **Sector Overview**: klasifikasi sektor berbasis nama emiten, ringkasan volume, rata-rata perubahan, gainers, dan losers.
 - **Whale Alerts**: deteksi lonjakan volume dan perubahan harga untuk membantu menemukan pergerakan pasar yang tidak biasa.
@@ -163,4 +163,5 @@ Sebelum membagikan project atau mengambil screenshot terbaru:
 ---
 
 Dibuat oleh [Arsyacoo](https://github.com/Arsyacoo).
+
 

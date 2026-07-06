@@ -270,7 +270,7 @@ def cache_history(cache_key, current, change_pct, history_points, metrics, cache
     }
 
 
-async def get_stock_detail_data(ticker: str, period: str = "1mo"):
+async def get_stock_detail_data(ticker: str, period: str = "1mo", force_refresh: bool = False):
     if period not in VALID_HISTORY_PERIODS:
         raise HTTPException(status_code=400, detail="Invalid period. Use one of: 5d, 1mo, 3mo, 6mo, 1y")
 
@@ -287,7 +287,7 @@ async def get_stock_detail_data(ticker: str, period: str = "1mo"):
     last_updated_at = None
     detail_metrics = default_metrics()
 
-    if is_history_cache_fresh(cached_history):
+    if not force_refresh and is_history_cache_fresh(cached_history):
         current = cached_history["last_price"]
         change_pct = cached_history["change_percent"]
         history_points = cached_history["history"]

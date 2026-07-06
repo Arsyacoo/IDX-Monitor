@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchStockHistory } from '../api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { fetchStockHistory, refreshStockHistory } from '../api';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Line
 } from 'recharts';
@@ -11,6 +11,13 @@ const PERIOD_OPTIONS = [
     { label: '3M', value: '3mo' },
     { label: '6M', value: '6mo' },
     { label: '1Y', value: '1y' },
+];
+
+const REFRESH_OPTIONS = [
+    { label: 'Manual', value: 0 },
+    { label: '15s', value: 15000 },
+    { label: '30s', value: 30000 },
+    { label: '60s', value: 60000 },
 ];
 
 const formatPrice = (value) => new Intl.NumberFormat('id-ID', {
@@ -128,8 +135,19 @@ const formatUpdatedAt = (value) => {
     return new Date(value).toLocaleTimeString('id-ID');
 };
 
+const getDataQuality = (source, updatedAt) => {
+    const ageSeconds = updatedAt ? (Date.now() - new Date(updatedAt).getTime()) / 1000 : null;
+    if (source === 'yahoo_chart' && ageSeconds !== null && ageSeconds <= 120) return { label: 'Live-ish', tone: 'text-emerald-300 border-emerald-800/60 bg-emerald-950/20' };
+    if (source === 'history_cache') return { label: 'From cache', tone: 'text-blue-300 border-blue-800/60 bg-blue-950/20' };
+    if (source === 'stale_history_cache') return { label: 'Delayed', tone: 'text-yellow-300 border-yellow-800/60 bg-yellow-950/20' };
+    if (source === 'yfinance_fallback' || source === 'price_cache') return { label: 'Provider fallback', tone: 'text-yellow-300 border-yellow-800/60 bg-yellow-950/20' };
+    return { label: 'Data pending', tone: 'text-slate-300 border-slate-700 bg-slate-800/50' };
+};
+
 const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false, autoRefresh = true, refreshInterval = 60000 }) => {
     const [period, setPeriod] = useState(defaultPeriod);
+    const [chartRefreshInterval, setChartRefreshInterval] = useState(autoRefresh ? Math.max(refreshInterval, 60000) : 0);
+    const queryClient = useQueryClient();
 
     useEffect(() => {
         setPeriod(defaultPeriod);
@@ -138,7 +156,11 @@ const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false, autoRe
         queryKey: ['stock', ticker, period],
         queryFn: () => fetchStockHistory(ticker, period),
         enabled: !!ticker,
-        refetchInterval: autoRefresh ? Math.max(refreshInterval, 60000) : false,
+        refetchInterval: chartRefreshInterval || false,
+    });
+    const refreshMutation = useMutation({
+        mutationFn: () => refreshStockHistory(ticker, period),
+        onSuccess: (data) => queryClient.setQueryData(['stock', ticker, period], data),
     });
 
     if (!ticker) {
@@ -177,6 +199,7 @@ const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false, autoRe
     const periodChange = firstHistoryPrice ? ((stockDetail.last_price - firstHistoryPrice) / firstHistoryPrice) * 100 : 0;
     const indicators = stockDetail.technical_indicators || {};
     const technicalInsights = buildTechnicalInsights(stockDetail, indicators);
+    const dataQuality = getDataQuality(stockDetail.data_source, stockDetail.last_updated_at);
 
     return (
         <div className={`bg-idx-card rounded-xl shadow-lg border border-slate-700 ${compactMode ? 'p-4' : 'p-6'} h-full flex flex-col`}>
@@ -206,6 +229,24 @@ const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false, autoRe
                             </button>
                         ))}
                     </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                        <select
+                            value={chartRefreshInterval}
+                            onChange={(event) => setChartRefreshInterval(Number(event.target.value))}
+                            className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-idx-accent"
+                            aria-label="Chart refresh interval"
+                        >
+                            {REFRESH_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                        </select>
+                        <button
+                            type="button"
+                            onClick={() => refreshMutation.mutate()}
+                            disabled={refreshMutation.isPending}
+                            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 font-semibold text-slate-200 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {refreshMutation.isPending ? 'Refreshing...' : 'Refresh now'}
+                        </button>
+                    </div>
                 </div>
                 <div className="text-left xl:text-right">
                     <div className="text-3xl font-mono text-white font-semibold">
@@ -219,6 +260,9 @@ const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false, autoRe
                     </div>
                     <div className="text-slate-500 text-xs mt-1">
                         Data updated: {formatUpdatedAt(stockDetail.last_updated_at)}
+                    </div>
+                    <div className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${dataQuality.tone}`}>
+                        {dataQuality.label}
                     </div>
                 </div>
             </div>

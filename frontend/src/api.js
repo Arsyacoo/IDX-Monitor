@@ -16,6 +16,11 @@ export const fetchStockHistory = async (ticker, period = '1mo') => {
     return response.data;
 };
 
+export const refreshStockHistory = async (ticker, period = '1mo') => {
+    const response = await api.post(`/stock/${ticker}/refresh`, null, { params: { period } });
+    return response.data;
+};
+
 export const fetchWhaleAlerts = async () => {
     const response = await api.get('/whale-alerts');
     return response.data;

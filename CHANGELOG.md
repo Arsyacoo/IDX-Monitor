@@ -20,6 +20,7 @@
 - Release readiness notes document public/debug modes, API endpoints, local validation, and known data limitations.
 - Sector accuracy upgrade moves sector classification to the backend with explicit ticker overrides and centralized fallback rules.
 - Portfolio tracker adds lots, average price, market value, and unrealized P/L to smart watchlist.
+- Near real-time chart controls add manual ticker refresh, chart polling intervals, and data quality labels.
 
 ### Changed
 - Backend models, cache state, and runtime config are split into dedicated modules.

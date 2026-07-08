@@ -12,7 +12,7 @@ import WatchlistBoard from './components/watchlist/WatchlistBoard';
 import ToastStack from './components/ui/ToastStack';
 import SettingsPanel from './components/ui/SettingsPanel';
 
-import { formatCompact, formatHealthTime } from './utils/formatters';
+import { formatCompact } from './utils/formatters';
 import {
   WATCHLIST_STORAGE_KEY,
   SETTINGS_STORAGE_KEY,

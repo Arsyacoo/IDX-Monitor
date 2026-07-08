@@ -6,7 +6,6 @@ const Navbar = ({
   setCurrentView,
   isFetching,
   lastUpdated,
-  isSettingsOpen,
   setIsSettingsOpen,
   onRefresh,
 }) => (

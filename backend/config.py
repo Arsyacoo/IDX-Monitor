@@ -18,3 +18,22 @@ VALID_HISTORY_PERIODS = {"5d", "1mo", "3mo", "6mo", "1y"}
 UNAVAILABLE_TICKER_TTL_SECONDS = int(os.getenv("UNAVAILABLE_TICKER_TTL_SECONDS", "3600"))
 EXTERNAL_REQUEST_RETRIES = int(os.getenv("EXTERNAL_REQUEST_RETRIES", "2"))
 EXTERNAL_REQUEST_BACKOFF_SECONDS = float(os.getenv("EXTERNAL_REQUEST_BACKOFF_SECONDS", "1"))
+
+# ---------- SQLite persistent cache ----------
+SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", os.path.join(os.path.dirname(__file__), "cache.db"))
+
+# ---------- Rate limiting ----------
+RATE_LIMIT_REQUESTS = int(os.getenv("RATE_LIMIT_REQUESTS", "60"))
+RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
+
+# ---------- News / RSS proxy ----------
+NEWS_RSS_URL = os.getenv(
+    "NEWS_RSS_URL",
+    "https://news.google.com/rss/search?q=IDX+OR+IHSG+OR+%22Bursa+Efek+Indonesia%22&hl=id&gl=ID&ceid=ID:id",
+)
+NEWS_CACHE_TTL_SECONDS = int(os.getenv("NEWS_CACHE_TTL_SECONDS", "300"))
+NEWS_MAX_ITEMS = int(os.getenv("NEWS_MAX_ITEMS", "20"))
+
+# ---------- Logging ----------
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+LOG_FORMAT = os.getenv("LOG_FORMAT", "json")  # "json" or "text"

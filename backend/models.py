@@ -85,8 +85,6 @@ class StockDetail(BaseModel):
     technical_indicators: TechnicalIndicators
 
 
-
-
 class WhaleAlert(BaseModel):
     ticker: str
     name: str
@@ -109,3 +107,11 @@ class MarketSummaryResponse(BaseModel):
     top_gainers: List[StockSummary]
     top_losers: List[StockSummary]
     top_volume: List[StockSummary]
+
+
+class NewsItem(BaseModel):
+    title: str
+    link: str
+    source: str = ""
+    published: str = ""
+    fetched_at: str = ""

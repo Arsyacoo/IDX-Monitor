@@ -1,4 +1,4 @@
-﻿import yfinance as yf
+import yfinance as yf
 
 from cache import record_provider_failure, record_provider_success, utc_now_iso
 from services.providers.retry import retry_with_backoff
@@ -55,3 +55,19 @@ def fetch_yfinance_batch(tickers_str):
     except Exception as error:
         record_provider_failure("yfinance", error)
         raise
+
+
+def fetch_yfinance_prices_batch(tickers_list):
+    """Download daily bars for a list of tickers in a single batch request."""
+    def request_prices():
+        # group_by="ticker" makes columns MultiIndex: (Ticker, Price/Volume/etc)
+        return yf.download(tickers_list, period="2d", group_by="ticker", progress=False)
+
+    try:
+        data = retry_with_backoff(request_prices)
+        record_provider_success("yfinance")
+        return data
+    except Exception as error:
+        record_provider_failure("yfinance", error)
+        raise
+

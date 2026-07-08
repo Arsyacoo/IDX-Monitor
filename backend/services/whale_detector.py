@@ -40,36 +40,88 @@ def build_whale_alert(stock, last_price, prev_close, current_vol, avg_vol):
     }
 
 
+import threading
+import asyncio
+
+WHALE_ALERTS_CACHE = []
+WHALE_ALERTS_LOCK = threading.Lock()
+
+
 async def get_whale_alerts_data():
-    scan_list = STOCKS_DB[:30]
-    tickers_with_suffix = [f"{stock['ticker']}.JK" for stock in scan_list]
-    tickers_str = " ".join(tickers_with_suffix)
-    alerts = []
+    """Return the cached whale alerts instantly."""
+    with WHALE_ALERTS_LOCK:
+        return list(WHALE_ALERTS_CACHE)
 
-    try:
-        data = yf.Tickers(tickers_str)
-        tickers_dict = data.tickers
 
-        for stock in scan_list:
-            ticker_key = f"{stock['ticker']}.JK"
-            if ticker_key not in tickers_dict:
-                continue
+async def update_whale_alerts_background():
+    """Background worker to periodically scan the entire IDX market for whale alerts."""
+    await asyncio.sleep(5)  # Wait for price updates to start
+    print("Background whale detection task started.")
 
-            try:
-                ticker_obj = tickers_dict[ticker_key]
-                current_vol = ticker_obj.fast_info.last_volume
-                avg_vol = ticker_obj.fast_info.three_month_average_volume
-                last_price = ticker_obj.fast_info.last_price
-                prev_close = ticker_obj.fast_info.previous_close
+    while True:
+        try:
+            total_stocks = len(STOCKS_DB)
+            batch_size = 20  # Safe batch size to avoid rate limiting
+            temp_alerts = []
 
-                alert = build_whale_alert(stock, last_price, prev_close, current_vol, avg_vol)
-                if alert:
-                    alerts.append(alert)
-            except Exception:
-                continue
+            for start_index in range(0, total_stocks, batch_size):
+                batch = STOCKS_DB[start_index:start_index + batch_size]
+                tickers_with_suffix = [f"{stock['ticker']}.JK" for stock in batch]
+                tickers_str = " ".join(tickers_with_suffix)
 
-        alerts.sort(key=lambda alert: alert["confidence_score"], reverse=True)
-    except Exception as error:
-        print(f"Error checking whales: {error}")
+                try:
+                    data = yf.Tickers(tickers_str)
+                    tickers_dict = data.tickers
 
-    return alerts
+                    for stock in batch:
+                        ticker_key = f"{stock['ticker']}.JK"
+                        if ticker_key not in tickers_dict:
+                            continue
+
+                        try:
+                            ticker_obj = tickers_dict[ticker_key]
+                            current_vol = 0
+                            avg_vol = 0
+                            last_price = 0.0
+                            prev_close = 0.0
+
+                            try:
+                                current_vol = ticker_obj.fast_info.last_volume
+                                avg_vol = ticker_obj.fast_info.three_month_average_volume
+                                last_price = ticker_obj.fast_info.last_price
+                                prev_close = ticker_obj.fast_info.previous_close
+                            except Exception:
+                                info = ticker_obj.info
+                                current_vol = info.get("volume") or 0
+                                avg_vol = info.get("averageVolume") or info.get("averageVolume10days") or 0
+                                last_price = info.get("currentPrice") or info.get("regularMarketPrice") or 0.0
+                                prev_close = info.get("previousClose") or last_price
+
+                            alert = build_whale_alert(stock, last_price, prev_close, current_vol, avg_vol)
+                            if alert:
+                                temp_alerts.append(alert)
+                        except Exception:
+                            continue
+                except Exception as batch_error:
+                    print(f"Error scanning batch {start_index} in whale detector: {batch_error}")
+
+                # Yield control and sleep between batches to avoid rate limits
+                await asyncio.sleep(3)
+
+            # Sort and update cache
+            temp_alerts.sort(key=lambda alert: alert["confidence_score"], reverse=True)
+            with WHALE_ALERTS_LOCK:
+                global WHALE_ALERTS_CACHE
+                WHALE_ALERTS_CACHE = temp_alerts
+            print(f"Whale detection cycle completed. Cached alerts: {len(WHALE_ALERTS_CACHE)}")
+
+            # Update every 10 minutes
+            await asyncio.sleep(600)
+
+        except asyncio.CancelledError:
+            print("Background whale detection task cancelled.")
+            raise
+        except Exception as error:
+            print(f"Fatal error in whale detector background task: {error}")
+            await asyncio.sleep(10)
+

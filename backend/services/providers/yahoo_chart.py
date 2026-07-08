@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import requests
 
@@ -8,6 +8,8 @@ from services.providers.retry import retry_with_backoff
 
 
 def fetch_yahoo_chart(ticker_jk, period):
+    jakarta_tz = timezone(timedelta(hours=7))
+
     def request_chart():
         response = requests.get(
             YAHOO_CHART_URL.format(ticker=ticker_jk),
@@ -40,7 +42,7 @@ def fetch_yahoo_chart(ticker_jk, period):
         if close is None:
             continue
         history.append({
-            "date": datetime.fromtimestamp(timestamp, timezone.utc).astimezone().strftime("%Y-%m-%d"),
+            "date": datetime.fromtimestamp(timestamp, timezone.utc).astimezone(jakarta_tz).strftime("%Y-%m-%d"),
             "price": close,
         })
 

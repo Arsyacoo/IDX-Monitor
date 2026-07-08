@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import json
 import math
 import os
@@ -25,8 +25,9 @@ from config import (
     PRICE_REFRESH_INTERVAL_SECONDS,
     VALID_HISTORY_PERIODS,
 )
+import pandas as pd
 from services.providers.yahoo_chart import fetch_yahoo_chart
-from services.providers.yfinance_provider import fetch_yfinance_batch, fetch_yfinance_history
+from services.providers.yfinance_provider import fetch_yfinance_batch, fetch_yfinance_history, fetch_yfinance_prices_batch
 from services.sector_classifier import classify_sector
 from services.technical_indicators import build_enriched_history, calculate_technical_indicators
 
@@ -102,31 +103,31 @@ async def update_prices_background():
                     await asyncio.sleep(PRICE_BATCH_DELAY_SECONDS)
                     continue
 
-                tickers_str = " ".join(tickers_with_suffix)
-
                 try:
-                    data = fetch_yfinance_batch(tickers_str)
+                    df = fetch_yfinance_prices_batch(tickers_with_suffix)
                     for ticker_code in tickers_with_suffix:
                         CACHE_STATUS["current_ticker"] = ticker_code
                         try:
-                            if ticker_code not in data.tickers:
-                                mark_ticker_unavailable(ticker_code, "Ticker missing from yfinance batch")
+                            # Handle both MultiIndex columns (multiple tickers) and SingleIndex columns (single ticker)
+                            if isinstance(df.columns, pd.MultiIndex):
+                                if ticker_code not in df.columns.levels[0]:
+                                    mark_ticker_unavailable(ticker_code, "Ticker missing from batch dataframe")
+                                    continue
+                                ticker_df = df[ticker_code].dropna(subset=["Close"])
+                            else:
+                                ticker_df = df.dropna(subset=["Close"])
+
+                            if ticker_df.empty:
+                                mark_ticker_unavailable(ticker_code, "No historical close prices returned")
                                 continue
 
-                            ticker_obj = data.tickers[ticker_code]
-                            current = 0.0
-                            previous = 0.0
-                            volume = 0
-
-                            try:
-                                current = ticker_obj.fast_info.last_price
-                                previous = ticker_obj.fast_info.previous_close
-                                volume = ticker_obj.fast_info.last_volume
-                            except Exception:
-                                info = ticker_obj.info
-                                current = info.get('currentPrice') or info.get('regularMarketPrice') or 0.0
-                                previous = info.get('previousClose') or current
-                                volume = info.get('volume') or 0
+                            current = float(ticker_df["Close"].iloc[-1])
+                            volume = int(ticker_df["Volume"].iloc[-1]) if "Volume" in ticker_df.columns else 0
+                            
+                            if len(ticker_df) >= 2:
+                                previous = float(ticker_df["Close"].iloc[-2])
+                            else:
+                                previous = current
 
                             if not current:
                                 mark_ticker_unavailable(ticker_code, "No current price")

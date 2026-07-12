@@ -26,6 +26,7 @@ import {
 const StockChart = lazy(() => import('./components/StockChart'));
 const WhaleAlerts = lazy(() => import('./components/WhaleAlerts'));
 const MarketNews = lazy(() => import('./components/dashboard/MarketNews'));
+const TechnicalScanner = lazy(() => import('./components/dashboard/TechnicalScanner'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -314,6 +315,12 @@ function Dashboard() {
               >
                 <Newspaper size={16} /> Market News
               </button>
+              <button
+                onClick={() => setCurrentView('scanner')}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${currentView === 'scanner' ? 'bg-idx-card text-white shadow' : 'text-gray-400 hover:text-white'}`}
+              >
+                <BarChart3 size={16} /> Scanner
+              </button>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -464,6 +471,11 @@ function Dashboard() {
         {currentView === 'news' && (
           <Suspense fallback={<PanelFallback label="market news" />}>
             <MarketNews />
+          </Suspense>
+        )}
+        {currentView === 'scanner' && (
+          <Suspense fallback={<PanelFallback label="scanner" />}>
+            <TechnicalScanner onOpenTicker={openTickerFromAlert} />
           </Suspense>
         )}
       </div>

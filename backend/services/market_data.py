@@ -400,3 +400,91 @@ def get_market_summary_data():
         "top_volume": top_volume,
     }
 
+
+def get_scanner_results(criteria: str):
+    results = []
+    cache_items = HISTORY_CACHE.items()
+
+    for key, entry in cache_items:
+        if not key.endswith(":1mo"):
+            continue
+
+        ticker_jk = key.split(":")[0]
+        ticker = ticker_jk.replace(".JK", "")
+
+        stock_info = next((stock for stock in STOCKS_DB if stock["ticker"] == ticker), None)
+        name = stock_info["name"] if stock_info else "Unknown Company"
+        sector, _ = classify_sector(stock_info or {"ticker": ticker, "name": name})
+
+        history_points = entry.get("history", [])
+        current = entry.get("last_price", 0.0)
+        change_pct = entry.get("change_percent", 0.0)
+
+        indicators = calculate_technical_indicators(history_points, current)
+        rsi14 = indicators.get("rsi14")
+        ma20 = indicators.get("ma20")
+        ma50 = indicators.get("ma50")
+        trend_label = indicators.get("trend_label", "Insufficient Data")
+
+        matched = False
+        signal = ""
+
+        enriched = build_enriched_history(history_points)
+        is_golden = False
+        is_death = False
+
+        if len(enriched) >= 2:
+            last_pt = enriched[-1]
+            prev_pt = enriched[-2]
+
+            l_ma20 = last_pt.get("ma20")
+            l_ma50 = last_pt.get("ma50")
+            p_ma20 = prev_pt.get("ma20")
+            p_ma50 = prev_pt.get("ma50")
+
+            if l_ma20 is not None and l_ma50 is not None and p_ma20 is not None and p_ma50 is not None:
+                if p_ma20 <= p_ma50 and l_ma20 > l_ma50:
+                    is_golden = True
+                elif p_ma20 >= p_ma50 and l_ma20 < l_ma50:
+                    is_death = True
+
+        if criteria == "rsi_oversold" and rsi14 is not None and rsi14 <= 30:
+            matched = True
+            signal = "Oversold"
+        elif criteria == "rsi_overbought" and rsi14 is not None and rsi14 >= 70:
+            matched = True
+            signal = "Overbought"
+        elif criteria == "golden_cross" and is_golden:
+            matched = True
+            signal = "Golden Cross"
+        elif criteria == "death_cross" and is_death:
+            matched = True
+            signal = "Death Cross"
+        elif criteria == "bullish_trend" and trend_label == "Bullish":
+            matched = True
+            signal = "Bullish"
+        elif criteria == "bearish_trend" and trend_label == "Bearish":
+            matched = True
+            signal = "Bearish"
+
+        if matched:
+            price_cache_entry = PRICE_CACHE.get(ticker_jk, {})
+            volume = int(price_cache_entry.get("volume", 0) or 0)
+
+            results.append({
+                "ticker": ticker,
+                "name": name,
+                "sector": sector,
+                "last_price": current,
+                "change_percent": round(change_pct, 2),
+                "volume": volume,
+                "rsi14": rsi14,
+                "ma20": ma20,
+                "ma50": ma50,
+                "trend_label": trend_label,
+                "signal": signal,
+            })
+
+    return sorted(results, key=lambda x: x["ticker"])
+
+

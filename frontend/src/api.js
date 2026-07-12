@@ -46,3 +46,9 @@ export const fetchNews = async () => {
     return response.data;
 };
 
+export const fetchScannerResults = async (criteria) => {
+    const response = await api.get('/scanner', { params: { criteria } });
+    return response.data;
+};
+
+

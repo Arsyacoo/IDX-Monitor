@@ -115,3 +115,18 @@ class NewsItem(BaseModel):
     source: str = ""
     published: str = ""
     fetched_at: str = ""
+
+
+class ScannedStock(BaseModel):
+    ticker: str
+    name: str
+    sector: str
+    last_price: float
+    change_percent: float
+    volume: int
+    rsi14: Optional[float] = None
+    ma20: Optional[float] = None
+    ma50: Optional[float] = None
+    trend_label: str
+    signal: str
+

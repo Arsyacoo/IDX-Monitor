@@ -1,9 +1,9 @@
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import APIRouter
 
-from models import MarketSummaryResponse, StockDetail, StockListResponse
-from services.market_data import get_market_summary_data, get_stock_detail_data, get_stocks_data
+from models import MarketSummaryResponse, StockDetail, StockListResponse, ScannedStock
+from services.market_data import get_market_summary_data, get_stock_detail_data, get_stocks_data, get_scanner_results
 
 router = APIRouter()
 
@@ -11,6 +11,11 @@ router = APIRouter()
 @router.get("/api/stocks", response_model=StockListResponse)
 async def get_stocks(page: int = 1, limit: int = 10, search: Optional[str] = None):
     return await get_stocks_data(page=page, limit=limit, search=search)
+
+
+@router.get("/api/scanner", response_model=List[ScannedStock])
+async def get_scanner(criteria: str = "rsi_oversold"):
+    return get_scanner_results(criteria)
 
 
 @router.get("/api/stock/{ticker}", response_model=StockDetail)

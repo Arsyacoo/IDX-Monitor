@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useStat
 import { QueryClient, QueryClientProvider, useQuery, keepPreviousData } from '@tanstack/react-query';
 import StockTable from './components/StockTable';
 import { fetchHealth, fetchMarketSummary, fetchProviderDiagnostics, fetchStocks } from './api';
-import { Activity, BarChart3, Download, LayoutDashboard, Radar, Clock, RefreshCw, Settings, TrendingDown, TrendingUp, Upload, X } from 'lucide-react';
+import { Activity, BarChart3, Download, LayoutDashboard, Radar, Clock, RefreshCw, Settings, TrendingDown, TrendingUp, Upload, X, Newspaper } from 'lucide-react';
 
 import HealthBanner from './components/dashboard/HealthBanner';
 import ProviderDiagnosticsPanel from './components/dashboard/ProviderDiagnosticsPanel';
@@ -25,6 +25,7 @@ import {
 
 const StockChart = lazy(() => import('./components/StockChart'));
 const WhaleAlerts = lazy(() => import('./components/WhaleAlerts'));
+const MarketNews = lazy(() => import('./components/dashboard/MarketNews'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -307,6 +308,12 @@ function Dashboard() {
               >
                 <Radar size={16} /> Whale Alerts
               </button>
+              <button
+                onClick={() => setCurrentView('news')}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${currentView === 'news' ? 'bg-idx-card text-white shadow' : 'text-gray-400 hover:text-white'}`}
+              >
+                <Newspaper size={16} /> Market News
+              </button>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -346,7 +353,7 @@ function Dashboard() {
       </nav>
 
       <div className="flex-1">
-        {currentView === 'dashboard' ? (
+        {currentView === 'dashboard' && (
           <div className="px-4 py-6 sm:px-6">
             <header className="max-w-7xl mx-auto mb-8 overflow-hidden rounded-3xl border border-slate-700/80 bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950/40 p-6 shadow-2xl shadow-slate-950/30">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -448,9 +455,15 @@ function Dashboard() {
               </div>
             </main>
           </div>
-        ) : (
+        )}
+        {currentView === 'whales' && (
           <Suspense fallback={<PanelFallback label="whale alerts" />}>
             <WhaleAlerts onOpenTicker={openTickerFromAlert} />
+          </Suspense>
+        )}
+        {currentView === 'news' && (
+          <Suspense fallback={<PanelFallback label="market news" />}>
+            <MarketNews />
           </Suspense>
         )}
       </div>

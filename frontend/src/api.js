@@ -40,3 +40,9 @@ export const fetchProviderDiagnostics = async () => {
     const response = await api.get('/status/providers');
     return response.data;
 };
+
+export const fetchNews = async () => {
+    const response = await api.get('/news');
+    return response.data;
+};
+

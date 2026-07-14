@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useStat
 import { QueryClient, QueryClientProvider, useQuery, keepPreviousData } from '@tanstack/react-query';
 import StockTable from './components/StockTable';
 import { fetchHealth, fetchMarketSummary, fetchProviderDiagnostics, fetchStocks } from './api';
-import { Activity, BarChart3, Download, LayoutDashboard, Radar, Clock, RefreshCw, Settings, TrendingDown, TrendingUp, Upload, X, Newspaper } from 'lucide-react';
+import { Activity, BarChart3, Download, LayoutDashboard, Radar, Clock, RefreshCw, Settings, TrendingDown, TrendingUp, Upload, X, Newspaper, Scale } from 'lucide-react';
 
 import HealthBanner from './components/dashboard/HealthBanner';
 import ProviderDiagnosticsPanel from './components/dashboard/ProviderDiagnosticsPanel';
@@ -27,6 +27,7 @@ const StockChart = lazy(() => import('./components/StockChart'));
 const WhaleAlerts = lazy(() => import('./components/WhaleAlerts'));
 const MarketNews = lazy(() => import('./components/dashboard/MarketNews'));
 const TechnicalScanner = lazy(() => import('./components/dashboard/TechnicalScanner'));
+const StockComparator = lazy(() => import('./components/dashboard/StockComparator'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -321,6 +322,12 @@ function Dashboard() {
               >
                 <BarChart3 size={16} /> Scanner
               </button>
+              <button
+                onClick={() => setCurrentView('compare')}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${currentView === 'compare' ? 'bg-idx-card text-white shadow' : 'text-gray-400 hover:text-white'}`}
+              >
+                <Scale size={16} /> Compare
+              </button>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -476,6 +483,11 @@ function Dashboard() {
         {currentView === 'scanner' && (
           <Suspense fallback={<PanelFallback label="scanner" />}>
             <TechnicalScanner onOpenTicker={openTickerFromAlert} />
+          </Suspense>
+        )}
+        {currentView === 'compare' && (
+          <Suspense fallback={<PanelFallback label="comparator" />}>
+            <StockComparator onOpenTicker={openTickerFromAlert} />
           </Suspense>
         )}
       </div>

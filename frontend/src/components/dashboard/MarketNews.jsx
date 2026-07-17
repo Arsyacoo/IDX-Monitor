@@ -120,9 +120,25 @@ const MarketNews = () => {
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                      {item.source || 'Market News'}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                        {item.source || 'Market News'}
+                      </span>
+                      {item.associated_ticker && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                          {item.associated_ticker}
+                        </span>
+                      )}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                        item.sentiment_label === 'POSITIVE'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : item.sentiment_label === 'NEGATIVE'
+                          ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                          : 'bg-slate-800 text-slate-400 border border-slate-700/50'
+                      }`}>
+                        {item.sentiment_label === 'POSITIVE' ? 'Bullish' : item.sentiment_label === 'NEGATIVE' ? 'Bearish' : 'Neutral'}
+                      </span>
+                    </div>
                     <ExternalLink size={14} className="text-slate-600 group-hover:text-slate-400 transition-colors" />
                   </div>
                   <h2 className="text-base font-semibold text-slate-200 group-hover:text-white leading-snug transition-colors line-clamp-3">

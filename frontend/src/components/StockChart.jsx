@@ -305,6 +305,48 @@ const StockChart = ({ ticker, defaultPeriod = '1mo', compactMode = false, autoRe
                 </div>
             )}
 
+            {stockDetail.sentiment && (
+                <div className="mb-5 rounded-2xl border border-slate-800 bg-idx-card p-5">
+                    <div className="mb-4 flex items-center justify-between">
+                        <div>
+                            <div className="text-sm font-bold text-white">Sentimen Publik & Berita</div>
+                            <div className="text-xs text-slate-500">Klasifikasi sentimen berbasis artikel berita terbaru.</div>
+                        </div>
+                        <span className="rounded-full border border-slate-800 bg-slate-900 px-2.5 py-0.5 text-[9px] uppercase tracking-wide text-slate-400 font-bold">Sentimen</span>
+                    </div>
+                    <div className="flex flex-col md:flex-row items-center gap-6">
+                        <div className="w-full md:w-1/3 flex flex-col items-center justify-center p-4 rounded-xl bg-slate-900/50 border border-slate-800">
+                            <span className={`text-3xl font-black tracking-wider ${
+                                stockDetail.sentiment.label === 'BULLISH' ? 'text-emerald-400' :
+                                stockDetail.sentiment.label === 'BEARISH' ? 'text-rose-400' : 'text-yellow-400'
+                            }`}>
+                                {stockDetail.sentiment.label}
+                            </span>
+                            <span className="text-[10px] text-slate-500 mt-1 font-semibold">({stockDetail.sentiment.total_articles} Berita Terkait)</span>
+                        </div>
+                        <div className="flex-1 w-full space-y-3">
+                            <div className="flex justify-between text-xs font-semibold">
+                                <span className="text-rose-400/80">Bearish</span>
+                                <span className="text-indigo-300 font-bold">{stockDetail.sentiment.score_percent}% Bullish</span>
+                                <span className="text-emerald-400/80">Bullish</span>
+                            </div>
+                            <div className="relative w-full h-2 bg-slate-950 rounded-full overflow-visible flex border border-slate-800/80">
+                                <div className="absolute inset-0 bg-gradient-to-r from-rose-500/60 via-slate-700 to-emerald-500/60 rounded-full"></div>
+                                <div 
+                                    className="absolute w-1.5 h-3.5 bg-white rounded-full shadow shadow-black -top-[3px] -translate-x-1/2 transition-all duration-500" 
+                                    style={{ left: `${stockDetail.sentiment.score_percent}%` }}
+                                ></div>
+                            </div>
+                            <div className="flex justify-between text-[9px] text-slate-500 font-mono">
+                                <span>🔴 {stockDetail.sentiment.breakdown.negative} Bearish</span>
+                                <span>⚪ {stockDetail.sentiment.breakdown.neutral} Netral</span>
+                                <span>🟢 {stockDetail.sentiment.breakdown.positive} Bullish</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex-1 w-full min-h-[260px] relative">
                 {isFetching && (
                     <div className="absolute right-3 top-3 z-10 rounded-full bg-slate-900/80 px-3 py-1 text-xs text-idx-accent border border-slate-700">

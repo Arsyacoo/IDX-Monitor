@@ -66,6 +66,19 @@ class TechnicalIndicators(BaseModel):
     trend_label: str
     period_points: int
 
+class TickerSentimentBreakdown(BaseModel):
+    positive: int
+    neutral: int
+    negative: int
+
+
+class TickerSentiment(BaseModel):
+    score_percent: float
+    label: str
+    total_articles: int
+    breakdown: TickerSentimentBreakdown
+
+
 class StockDetail(BaseModel):
     ticker: str
     name: str
@@ -83,15 +96,17 @@ class StockDetail(BaseModel):
     volume: int
     history: List[StockHistoryPoint]
     technical_indicators: TechnicalIndicators
+    sentiment: Optional[TickerSentiment] = None
 
 
 class WhaleAlert(BaseModel):
     ticker: str
     name: str
+    amount_idr: float
+    type: str
+    timestamp: str
     price: float
-    change_percent: float
     volume: int
-    avg_volume: int
     volume_ratio: float
     signal: str
     category: str
@@ -115,6 +130,9 @@ class NewsItem(BaseModel):
     source: str = ""
     published: str = ""
     fetched_at: str = ""
+    sentiment_score: float = 0.0
+    sentiment_label: str = "NEUTRAL"
+    associated_ticker: str = ""
 
 
 class ScannedStock(BaseModel):

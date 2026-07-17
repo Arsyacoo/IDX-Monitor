@@ -348,6 +348,7 @@ async def get_stock_detail_data(ticker: str, period: str = "1mo", force_refresh:
             mark_ticker_unavailable(ticker_jk, error)
             print(f"Warning: Failed to fetch history for {ticker}: {error}")
 
+    from database import get_ticker_sentiment
     technical_indicators = calculate_technical_indicators(history_points, current)
     enriched_history = build_enriched_history(history_points)
 
@@ -368,6 +369,7 @@ async def get_stock_detail_data(ticker: str, period: str = "1mo", force_refresh:
         "volume": int(detail_metrics["volume"] or 0),
         "history": enriched_history,
         "technical_indicators": technical_indicators,
+        "sentiment": get_ticker_sentiment(ticker.upper()),
     }
 
 

@@ -17,8 +17,13 @@ logger = get_logger(__name__)
 _local = threading.local()
 
 
+_db_initialized = False
+_db_lock = threading.Lock()
+
+
 def _get_connection() -> sqlite3.Connection:
     """Return a thread-local SQLite connection (created on first call)."""
+    global _db_initialized
     conn = getattr(_local, "conn", None)
     if conn is None:
         conn = sqlite3.connect(SQLITE_DB_PATH, check_same_thread=False)
@@ -26,6 +31,16 @@ def _get_connection() -> sqlite3.Connection:
         conn.execute("PRAGMA synchronous=NORMAL")
         conn.row_factory = sqlite3.Row
         _local.conn = conn
+
+    if not _db_initialized:
+        with _db_lock:
+            if not _db_initialized:
+                _db_initialized = True
+                try:
+                    init_db()
+                except Exception as e:
+                    _db_initialized = False
+                    logger.error(f"Failed to initialize database: {e}")
     return conn
 
 
@@ -54,6 +69,17 @@ def init_db():
         """
     )
     conn.commit()
+
+    # Column migrations for sentiment metadata
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(news_cache)")
+    columns = [row["name"] for row in cursor.fetchall()]
+    if "sentiment_score" not in columns:
+        conn.execute("ALTER TABLE news_cache ADD COLUMN sentiment_score REAL DEFAULT 0.0")
+        conn.execute("ALTER TABLE news_cache ADD COLUMN sentiment_label TEXT DEFAULT 'NEUTRAL'")
+        conn.execute("ALTER TABLE news_cache ADD COLUMN associated_ticker TEXT DEFAULT ''")
+        conn.commit()
+
     logger.info("SQLite database initialised", extra={"endpoint": SQLITE_DB_PATH})
 
 
@@ -135,29 +161,80 @@ def load_all_histories() -> dict:
 
 
 def save_news_items(items: list):
-    """Insert new RSS items, ignoring duplicates by link."""
+    """Insert new RSS items with sentiment analysis, ignoring duplicates by link."""
+    from services.sentiment import analyze_sentiment
     conn = _get_connection()
     now = datetime.now(timezone.utc).isoformat()
     for item in items:
+        analysis = analyze_sentiment(item["title"])
         conn.execute(
             """
-            INSERT OR IGNORE INTO news_cache (title, link, source, published, fetched_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT OR IGNORE INTO news_cache (title, link, source, published, fetched_at, sentiment_score, sentiment_label, associated_ticker)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (item["title"], item["link"], item.get("source", ""),
-             item.get("published", ""), now),
+             item.get("published", ""), now,
+             analysis["score"], analysis["label"], analysis["ticker"]),
         )
     conn.commit()
 
 
 def load_news_items(limit: int = 20) -> list:
-    """Return the most recent ``limit`` news items."""
+    """Return the most recent ``limit`` news items with sentiment data."""
     conn = _get_connection()
     rows = conn.execute(
-        "SELECT title, link, source, published, fetched_at FROM news_cache ORDER BY id DESC LIMIT ?",
+        """
+        SELECT title, link, source, published, fetched_at, sentiment_score, sentiment_label, associated_ticker 
+        FROM news_cache 
+        ORDER BY id DESC LIMIT ?
+        """,
         (limit,),
     ).fetchall()
     return [dict(row) for row in rows]
+
+
+def get_ticker_sentiment(ticker: str) -> dict:
+    """Aggregate sentiment metrics for a specific ticker based on news cache."""
+    conn = _get_connection()
+    rows = conn.execute(
+        """
+        SELECT sentiment_label, COUNT(*) as count 
+        FROM news_cache 
+        WHERE associated_ticker = ?
+        GROUP BY sentiment_label
+        """,
+        (ticker.upper(),),
+    ).fetchall()
+
+    breakdown = {"positive": 0, "neutral": 0, "negative": 0}
+    total = 0
+    for row in rows:
+        label = row["sentiment_label"].lower()
+        if label in breakdown:
+            breakdown[label] = row["count"]
+            total += row["count"]
+
+    pos = breakdown["positive"]
+    neg = breakdown["negative"]
+    if pos + neg == 0:
+        score_percent = 50.0
+        label = "NEUTRAL"
+    else:
+        score_percent = round((pos / (pos + neg)) * 100, 1)
+        if score_percent > 60:
+            label = "BULLISH"
+        elif score_percent < 40:
+            label = "BEARISH"
+        else:
+            label = "NEUTRAL"
+
+    return {
+        "score_percent": score_percent,
+        "label": label,
+        "total_articles": total,
+        "breakdown": breakdown
+    }
+
 
 
 def close_db():
